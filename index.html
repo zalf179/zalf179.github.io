@@ -3,7 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>DevSecOps Architect Portfolio</title>
+    <title>Zalfy Portfolio</title>
+
+    <!-- Favicon Terminal Matrix/Cyberpunk -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='15' y='65' fill='%2322c55e' font-family='monospace' font-weight='bold' font-size='55'>&gt;_</text></svg>">
     
     <!-- Tailwind CSS with Forms and Container Queries Plugins -->
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
@@ -409,6 +412,8 @@
                     <div class="w-full h-[440px] sm:h-[540px] md:h-[620px] relative flex justify-center items-center">
                         <!-- WebGL Canvas rendering 3D vintage computer model -->
                         <canvas id="three-computer-canvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+                        <!-- Hidden transparent input untuk memunculkan keyboard virtual di mobile -->
+                        <input type="text" id="terminal-hidden-input" autocomplete="off" autocapitalize="off" spellcheck="false" style="position: absolute; opacity: 0; width: 1px; height: 1px; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none;">
                     </div>
 
                 </div>
@@ -421,9 +426,6 @@
             <div class="max-w-container-max mx-auto px-gutter">
                 <!-- Section Header -->
                 <header class="mb-20 reveal">
-                    <div class="inline-block border border-primary-container text-primary-container px-3 py-1 font-label-mono text-label-mono mb-6">
-                        SYSTEM_STATUS: OPERATIONAL
-                    </div>
                     <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-4" data-decode="Technical Stack &amp; Strategic Insights">Technical Stack &amp; Strategic Insights</h2>
                     <p class="text-on-surface-variant max-w-2xl font-body-lg text-body-lg">
                         Architecting secure, resilient infrastructure through a blend of offensive security methodologies and automated cloud-native engineering.
@@ -550,10 +552,6 @@
                 <!-- Section Header -->
                 <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6 reveal">
                     <div>
-                        <div class="flex items-center gap-4 mb-4">
-                            <div class="h-[1px] w-12 bg-primary-container"></div>
-                            <span class="font-label-mono text-label-mono text-primary-container uppercase tracking-widest">Repository_Explorer</span>
-                        </div>
                         <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg max-w-3xl" data-decode="Engineered Infrastructure &amp; Defensive Systems">
                             Engineered Infrastructure &amp; Defensive Systems
                         </h2>
@@ -757,9 +755,6 @@
         <section id="contact" class="py-24 border-t border-outline-variant relative overflow-hidden">
             <div class="max-w-container-max mx-auto px-gutter">
                 <div class="mb-16 text-center reveal">
-                    <div class="inline-block border border-primary-container text-primary-container px-3 py-1 font-label-mono text-label-mono mb-6">
-                        INITIALIZE_HANDSHAKE
-                    </div>
                     <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-6" data-decode="Ready to Secure Your Velocity?">Ready to Secure Your Velocity?</h2>
                     <p class="text-on-surface-variant font-body-lg max-w-2xl mx-auto mb-10">Currently open to architectural consultation, pipeline auditing, or senior-level DevSecOps positions. Let's build something unbreakable.</p>
                 </div>
@@ -1142,6 +1137,15 @@
                 screenMesh.position.set(0, 36, 1.02);
                 monitorContainer.add(screenMesh);
 
+                // Hitbox transparan khusus layar untuk deteksi tap yang andal (mobile)
+                const screenHitbox = new THREE.Mesh(
+                    new THREE.PlaneGeometry(77, 44),
+                    new THREE.MeshBasicMaterial({ visible: false })
+                );
+                screenHitbox.name = "screenHitbox";
+                screenHitbox.position.set(0, 36, 1.05);
+                monitorContainer.add(screenHitbox);
+
                 // 3D Model Attribution
                 // "PC Desktop Screen Monitor" (https://skfb.ly/o7PrY) by MYVAL
                 // is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/)
@@ -1323,6 +1327,114 @@
                         return;
                     }
                 });
+
+                // Mobile: hidden input trigger untuk memunculkan keyboard virtual
+                let isInputFocused = false;
+                const hiddenInput = document.getElementById('terminal-hidden-input');
+                const raycaster = new THREE.Raycaster();
+                const rayMouse = new THREE.Vector2();
+
+                // Wajib: matikan default touch action di canvas agar browser mobile
+                // tidak menginterupsi/memblokir gestur sentuhan (mencegah touch-scroll default)
+                renderer.domElement.style.touchAction = 'none';
+
+                if (hiddenInput) {
+                    // Tap vs drag: gunakan touchend sinkron (mobile) + click (desktop)
+                    let startX = 0;
+                    let startY = 0;
+
+                    renderer.domElement.addEventListener('pointerdown', (e) => {
+                        startX = e.clientX;
+                        startY = e.clientY;
+                    });
+
+                    function handleScreenTap(clientX, clientY) {
+                        const rect = renderer.domElement.getBoundingClientRect();
+                        rayMouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+                        rayMouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+                        raycaster.setFromCamera(rayMouse, camera);
+                        const intersects = raycaster.intersectObjects(scene.children, true);
+
+                        if (intersects.length > 0) {
+                            // Tap pada monitor -> trigger keyboard langsung (fokus segera)
+                            isInputFocused = true;
+                            hiddenInput.value = '';
+                            hiddenInput.focus({ preventScroll: true });
+                            hiddenInput.click();
+                        } else {
+                            // Tap di luar monitor -> tutup keyboard
+                            isInputFocused = false;
+                            hiddenInput.blur();
+                            if (document.activeElement instanceof HTMLElement) {
+                                document.activeElement.blur();
+                            }
+                        }
+                    }
+
+                    // touchend sinkron (khusus mobile) - fokus sebelum browser memblokir
+                    renderer.domElement.addEventListener('touchend', (e) => {
+                        if (e.changedTouches && e.changedTouches.length > 0) {
+                            const touch = e.changedTouches[0];
+                            const deltaX = Math.abs(touch.clientX - startX);
+                            const deltaY = Math.abs(touch.clientY - startY);
+                            if (deltaX < 10 && deltaY < 10) {
+                                handleScreenTap(touch.clientX, touch.clientY);
+                            }
+                        }
+                    });
+
+                    // Fallback click untuk desktop
+                    renderer.domElement.addEventListener('click', (e) => {
+                        const deltaX = Math.abs(e.clientX - startX);
+                        const deltaY = Math.abs(e.clientY - startY);
+                        if (deltaX < 10 && deltaY < 10) {
+                            handleScreenTap(e.clientX, e.clientY);
+                        }
+                    });
+
+                    // Update flag saat input kehilangan fokus
+                    hiddenInput.addEventListener('blur', () => {
+                        isInputFocused = false;
+                    });
+
+                    // Tangkap karakter yang diketik dari hidden input
+                    hiddenInput.addEventListener('input', (e) => {
+                        if (hiddenInput.value.length > 0) {
+                            currentLine += hiddenInput.value;
+                            drawTerminalToCanvas();
+                        }
+                        // Kosongkan agar tidak menumpuk (Backspace/Enter tetap lewat keydown)
+                        if (e.inputType !== 'deleteContentBackward') {
+                            hiddenInput.value = '';
+                        }
+                    });
+
+                    hiddenInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Backspace') {
+                            e.preventDefault();
+                            currentLine = currentLine.slice(0, -1);
+                            drawTerminalToCanvas();
+                            hiddenInput.value = '';
+                        } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            linesHistory.push({ type: 'cmd', text: currentLine });
+                            processCommand(currentLine);
+                            currentLine = "";
+                            hiddenInput.value = '';
+                            drawTerminalToCanvas();
+                        }
+                    });
+
+                    // Sembunyikan keyboard saat blur (opsional)
+                    hiddenInput.addEventListener('blur', () => {
+                        if (hiddenInput.value) {
+                            currentLine += hiddenInput.value;
+                            hiddenInput.value = '';
+                            drawTerminalToCanvas();
+                        }
+                    });
+                }
 
 
                 // Mouse Drag & Tilt Interaction
