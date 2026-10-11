@@ -12,12 +12,15 @@ import {
   setMaxAnisotropy,
 } from './scene.js';
 import { createScreens } from './screens.js';
+import { createCameraPath } from './camera-path.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
 const loaderFill = document.getElementById('loader-fill');
 const loaderLabel = document.getElementById('loader-label');
 const errorEl = document.getElementById('scene-error');
+const dotEls = Array.from(document.querySelectorAll('#dots button'));
+const hintEl = document.getElementById('scroll-hint');
 
 let dirty = true;
 const markDirty = () => { dirty = true; };
@@ -42,7 +45,6 @@ function showError(message) {
     if (msg) msg.textContent = message;
   }
   if (loaderEl) loaderEl.classList.add('done');
-  markDirty();
 }
 
 function webglAvailable() {
@@ -52,6 +54,10 @@ function webglAvailable() {
   } catch {
     return false;
   }
+}
+
+function setDotActive(index) {
+  dotEls.forEach((d, i) => d.classList.toggle('active', i === index));
 }
 
 // ------------------------------------------------------------------- boot
@@ -84,28 +90,27 @@ function boot() {
   resizeRenderer(renderer, camera);
   renderer.render(scene, camera);
 
+  const app = { renderer, scene, camera, room: null, bounds: null, screens: null, screensUI: null, path: null, markDirty, onFrame: null };
+  let path = null;
+
   const manager = new THREE.LoadingManager();
   manager.onProgress = (_url, loaded, total) => {
     if (total > 0) setProgress((loaded / total) * 100);
   };
   manager.onError = (url) => console.error('Asset load error:', url);
 
-  window.addEventListener('resize', () => { resizeRenderer(renderer, camera); markDirty(); });
-  window.addEventListener('orientationchange', () => {
-    window.setTimeout(() => { resizeRenderer(renderer, camera); markDirty(); }, 150);
-  });
-
-  // Applies a stop's camera pose (used by the debug ?stop=N helper for now;
-  // the scrubbed timeline in js/camera-path.js takes over in stage 3).
-  function applyStop(index, portrait) {
-    const stop = CONFIG.stops[index] || CONFIG.stops[0];
-    const w = portrait ? stop.mobile : stop.desktop;
-    camera.position.set(...w.pos);
-    camera.lookAt(...w.look);
-    camera.fov = w.fov;
-    camera.updateProjectionMatrix();
+  window.addEventListener('resize', () => {
+    resizeRenderer(renderer, camera);
+    if (path) path.rebuild();
     markDirty();
-  }
+  });
+  window.addEventListener('orientationchange', () => {
+    window.setTimeout(() => {
+      resizeRenderer(renderer, camera);
+      if (path) path.rebuild();
+      markDirty();
+    }, 150);
+  });
 
   loadRoom(manager)
     .then(async (gltf) => {
@@ -115,13 +120,10 @@ function boot() {
       const bounds = measureBounds(room);
       addLights(scene, bounds);
 
-      // Keep references for later stages (screens / camera path).
       const screens = collectScreens(room);
       app.room = room;
       app.bounds = bounds;
       app.screens = screens;
-      app.applyStop = applyStop;
-      app.stops = CONFIG.stops;
 
       // Wait for the monospace font so the canvas text is crisp on first draw.
       try { await document.fonts.ready; } catch { /* draw anyway */ }
@@ -134,20 +136,48 @@ function boot() {
       });
       screensUI.drawAll();
       app.screensUI = screensUI;
+      if (CONFIG.stops[0]) screensUI.setActive(CONFIG.stops[0].id);
+
+      // Scrubbed camera path through the four stops.
+      path = createCameraPath({
+        camera,
+        onNeedsRender: markDirty,
+        onStop: (index, stop) => {
+          setDotActive(index);
+          screensUI.setActive(stop.id);
+        },
+      });
+      app.path = path;
+      app.onFrame = () => { if (path.update()) markDirty(); };
+
+      // Dots: click = smooth scroll to that stop.
+      dotEls.forEach((dot) => {
+        dot.addEventListener('click', () => path.scrollToStop(Number(dot.dataset.stop)));
+      });
 
       setProgress(100);
       fadeLoader();
+      setDotActive(0);
       markDirty();
 
       // Debug helpers: ?debug exposes the app, ?stop=N jumps to a waypoint.
       const params = new URLSearchParams(location.search);
       if (params.has('debug')) window.__zally = app;
-      if (params.has('stop')) applyStop(parseInt(params.get('stop'), 10) || 0, window.innerWidth < CONFIG.mobileWidth);
+      if (params.has('stop')) {
+        const i = Math.max(0, Math.min(CONFIG.stops.length - 1, parseInt(params.get('stop'), 10) || 0));
+        window.requestAnimationFrame(() => path.scrollToStop(i));
+      }
     })
     .catch((err) => {
       console.error('Scene load failed:', err);
       showError('The 3D scene could not be loaded. The full portfolio is shown as plain text instead.');
     });
+
+  // Hide the scroll hint after the first scroll.
+  if (hintEl) {
+    const onFirstScroll = () => { hintEl.classList.add('hidden'); window.removeEventListener('scroll', onFirstScroll); };
+    window.addEventListener('scroll', onFirstScroll, { passive: true });
+  }
 
   // ---------------------------------------------------------- debug controls
   let orbit = null;
@@ -157,13 +187,12 @@ function boot() {
       const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
       orbit = new OrbitControls(camera, canvas);
       orbit.enableDamping = true;
-      orbit.target.set(-0.12, 0.9, -0.15);
       orbit.addEventListener('change', markDirty);
-      console.log('[debug] OrbitControls enabled — drag to orbit, press D again for info.');
+      console.log('[debug] OrbitControls enabled — drag to orbit, press D again for renderer.info.');
     } else {
       const info = renderer.info;
       console.log('[debug] camera', camera.position.toArray().map((n) => +n.toFixed(3)));
-      console.log('[debug] target', orbit.target.toArray().map((n) => +n.toFixed(3)));
+      console.log('[debug] lookAt(tracked)', path ? path.rig.target.toArray().map((n) => +n.toFixed(3)) : null);
       console.log('[debug] fov', camera.fov);
       console.log('[debug] renderer.info', {
         triangles: info.render.triangles,
@@ -172,7 +201,6 @@ function boot() {
         textures: info.memory.textures,
         programs: info.programs?.length,
       });
-      orbit.update();
     }
     markDirty();
   });
@@ -187,8 +215,7 @@ function boot() {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
-    if (app.onFrame) app.onFrame(now, dt, markDirty);
-
+    if (app.onFrame) app.onFrame(now, dt);
     if (orbit) orbit.update();
 
     if (dirty) {
@@ -197,8 +224,11 @@ function boot() {
     }
   }
 
-  // Shared app object so later stages can register hooks without globals.
-  const app = { renderer, scene, camera, room: null, bounds: null, screens: null, markDirty, onFrame: null };
+  // Start at the top on (re)load.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+
+  window.__zally = app; // always available for the keyboard debug shortcut
   loop();
 }
 
