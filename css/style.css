@@ -458,6 +458,12 @@ body.no-webgl #dots-nav {
   filter: blur(0);
 }
 
+/* Keyboard focus ring (accent) for interactive elements. */
+:where(a, button, .card-glass, .project-card, .tilt-card, #dots-nav a):focus-visible {
+  outline: 2px solid var(--accent, #00ff41);
+  outline-offset: 2px;
+}
+
 /* Character De-code Title Effect */
 .decode-title .decode-char {
   display: inline-block;
