@@ -148,11 +148,34 @@ function boot() {
         },
       });
       app.path = path;
-      app.onFrame = () => { if (path.update()) markDirty(); };
+      app.onFrame = (now) => {
+        let changed = path.update();
+        if (screensUI.update(now)) changed = true;
+        if (changed) markDirty();
+      };
 
       // Dots: click = smooth scroll to that stop.
       dotEls.forEach((dot) => {
         dot.addEventListener('click', () => path.scrollToStop(Number(dot.dataset.stop)));
+      });
+
+      // In-scene links: hover for a pointer cursor, click to open.
+      const hitAt = (e) => screensUI.pick(e.clientX, e.clientY, camera, canvas);
+      canvas.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'touch') return;
+        canvas.style.cursor = hitAt(e) ? 'pointer' : 'default';
+      });
+      canvas.addEventListener('pointerleave', () => { canvas.style.cursor = 'default'; });
+      canvas.addEventListener('click', (e) => {
+        const hit = hitAt(e);
+        if (!hit) return;
+        const a = document.createElement('a');
+        a.href = hit.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       });
 
       setProgress(100);

@@ -6,12 +6,15 @@ const FONT = CONFIG.screens.font;
 const W = CONFIG.screens.canvasWidth;
 const H = CONFIG.screens.canvasHeight;
 
+const REDUCED = globalThis.matchMedia
+  ? globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
+  : false;
+
 // ----------------------------------------------------------------- content
-// Each stop is a list of lines. A line is { indent, size, runs:[...] }.
-// A run is { text, color, weight, url }. `url` makes it a clickable link.
+// A stop is a list of lines. A line is { indent, size, gap, runs:[...] }.
+// A run is { text, color, weight, size, url }; `url` makes it a clickable link.
 const BODY = 34;
 const SMALL = 29;
-
 const PROMPT = 'visitor@sec-ops-portfolio:~$';
 
 function whoamiContent() {
@@ -43,43 +46,39 @@ function whoamiContent() {
 
 function skillsContent() {
   const kv = (k, v, color = C.fg) => ({
-    indent: 40,
-    size: SMALL,
-    runs: [
-      { text: k.padEnd(12, ' '), color: C.accent, weight: 500 },
-      { text: v, color },
-    ],
+    indent: 40, size: SMALL,
+    runs: [{ text: k.padEnd(12, ' '), color: C.accent, weight: 500 }, { text: v, color }],
   });
   const head = (t) => ({ gap: 10, runs: [{ text: '> ' + t, color: C.green, weight: 700, size: 38 }] });
   const note = (t) => ({ indent: 40, size: SMALL, runs: [{ text: t, color: C.comment }] });
+  const row = (k, v) => ({
+    indent: 40, size: SMALL,
+    runs: [{ text: k.padEnd(12, ' '), color: C.fg, weight: 700 }, { text: v, color: C.dim }],
+  });
   return [
     { runs: [{ text: '# technical stack & strategic insights', color: C.comment }] },
     { runs: [{ text: 'Architecting secure, resilient infrastructure.', color: C.dim }] },
     { gap: 18 },
     head('SECURITY'),
-    { indent: 40, size: SMALL, runs: [{ text: 'DAST/SAST   ', color: C.fg, weight: 700 }, { text: 'automated vuln scans, dependency auditing, container scanning', color: C.dim }] },
-    { indent: 40, size: SMALL, runs: [{ text: 'Pentesting  ', color: C.fg, weight: 700 }, { text: 'network/application security evaluation, threat emulation', color: C.dim }] },
-    { indent: 40, size: SMALL, runs: [{ text: 'SIEM/SOC    ', color: C.fg, weight: 700 }, { text: 'intrusion monitoring, threat hunting, log aggregation', color: C.dim }] },
+    row('DAST/SAST', 'automated vuln scans, dependency auditing, container scanning'),
+    row('Pentesting', 'network/application security evaluation, threat emulation'),
+    row('SIEM/SOC', 'intrusion monitoring, threat hunting, log aggregation'),
     head('CLOUD'),
     kv('AWS', 'Learning', C.warn),
     kv('Azure', 'Planned', C.dim),
     kv('GCP', 'Planned', C.dim),
     head('DEVOPS'),
     note('Docker  Kubernetes  Terraform  Ansible  GitHub Actions'),
-    { indent: 40, size: SMALL, runs: [{ text: 'IaC         ', color: C.accent, weight: 500 }, { text: 'version-controlled, peer-reviewed cloud environments', color: C.dim }] },
-    { indent: 40, size: SMALL, runs: [{ text: 'DevSecOps   ', color: C.accent, weight: 500 }, { text: 'vuln scans + policy gates inside CI/CD', color: C.dim }] },
-    { indent: 40, size: SMALL, runs: [{ text: 'Containers  ', color: C.accent, weight: 500 }, { text: 'image hardening, admission control, signing, runtime', color: C.dim }] },
+    { indent: 40, size: SMALL, runs: [{ text: 'IaC'.padEnd(12, ' '), color: C.accent, weight: 500 }, { text: 'version-controlled, peer-reviewed cloud environments', color: C.dim }] },
+    { indent: 40, size: SMALL, runs: [{ text: 'DevSecOps'.padEnd(12, ' '), color: C.accent, weight: 500 }, { text: 'vuln scans + policy gates inside CI/CD', color: C.dim }] },
+    { indent: 40, size: SMALL, runs: [{ text: 'Containers'.padEnd(12, ' '), color: C.accent, weight: 500 }, { text: 'image hardening, admission control, signing, runtime', color: C.dim }] },
   ];
 }
 
 function projectsContent() {
   const proj = (n, title, desc, links) => {
-    const runs = [
-      { text: `[${n}] `, color: C.green, weight: 700 },
-      { text: title, color: C.fg, weight: 700, size: 36 },
-    ];
     const rows = [
-      { gap: 12, runs },
+      { gap: 12, runs: [{ text: `[${n}] `, color: C.green, weight: 700 }, { text: title, color: C.fg, weight: 700, size: 36 }] },
       { indent: 44, size: SMALL, runs: [{ text: desc, color: C.dim }] },
     ];
     if (links && links.length) {
@@ -138,18 +137,13 @@ function contactContent() {
     { gap: 18 },
     { runs: [{ text: 'Ready to Secure Your Velocity?', color: C.accent, weight: 700, size: 40 }] },
     { runs: [{ text: 'Open to architectural consultation, pipeline auditing, or', color: C.dim, size: SMALL }] },
-    { runs: [{ text: 'senior-level DevSecOps positions. Let\'s build something unbreakable.', color: C.dim, size: SMALL }] },
+    { runs: [{ text: "senior-level DevSecOps positions. Let's build something unbreakable.", color: C.dim, size: SMALL }] },
     { gap: 14 },
     { runs: [{ text: '\u25cf ', color: C.green, size: SMALL }, { text: '[STATUS] Ready for encrypted communications.', color: C.green, size: SMALL }] },
   ];
 }
 
-const CONTENT = {
-  home: whoamiContent,
-  skills: skillsContent,
-  projects: projectsContent,
-  contact: contactContent,
-};
+const CONTENT = { home: whoamiContent, skills: skillsContent, projects: projectsContent, contact: contactContent };
 
 // ----------------------------------------------------------------- drawing
 const PAD_X = 84;
@@ -158,23 +152,22 @@ const LINE = 52;
 
 function totalChars(lines) {
   let n = 0;
-  for (const l of lines) {
-    for (const r of l.runs || []) n += r.text.length;
-  }
+  for (const l of lines) for (const r of l.runs || []) n += r.text.length;
   return n;
 }
 
-// Draws `lines`, revealing at most `reveal` characters (Infinity = all),
+// Draws `lines`, revealing at most `reveal` chars (Infinity = all), and
 // collecting clickable hit-rects (canvas px) into `hitRects`.
 function drawLines(ctx, lines, reveal, hitRects) {
   let y = PAD_Y;
   let remaining = reveal;
+  let cursor = null;
 
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
 
   for (const line of lines) {
-    let size = line.size || BODY;
+    const size = line.size || BODY;
     if (line.gap) y += line.gap;
     if (!line.runs) continue;
 
@@ -183,8 +176,7 @@ function drawLines(ctx, lines, reveal, hitRects) {
 
     for (const run of line.runs) {
       const s = run.size || size;
-      const weight = run.weight || 400;
-      ctx.font = `${weight} ${s}px ${FONT}`;
+      ctx.font = `${run.weight || 400} ${s}px ${FONT}`;
       ctx.fillStyle = run.color || C.fg;
 
       const len = run.text.length;
@@ -200,29 +192,27 @@ function drawLines(ctx, lines, reveal, hitRects) {
         hitRects.push({ x, y, w, h: s * 1.25, url: run.url, label: run.text });
       }
       x += ctx.measureText(run.text).width;
+      cursor = { x: x - ctx.measureText(run.text).width + ctx.measureText(show).width, y, size: s };
       remaining -= len;
     }
     y += lh;
   }
-  return { endY: y, cursorX: 0 };
+  return cursor;
 }
 
 function drawChrome(ctx, title) {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
 
-  // faint scanline texture
   ctx.fillStyle = 'rgba(255,255,255,0.015)';
   for (let yy = 0; yy < H; yy += 4) ctx.fillRect(0, yy, W, 1);
 
-  // title bar
   ctx.fillStyle = C.panel;
   ctx.fillRect(0, 0, W, 96);
   ctx.fillStyle = C.frame;
   ctx.fillRect(0, 96, W, 3);
 
-  const dots = [C.red, C.warn, C.green];
-  dots.forEach((col, i) => {
+  [C.red, C.warn, C.green].forEach((col, i) => {
     ctx.beginPath();
     ctx.arc(48 + i * 42, 48, 13, 0, Math.PI * 2);
     ctx.fillStyle = col;
@@ -236,17 +226,17 @@ function drawChrome(ctx, title) {
   ctx.textBaseline = 'top';
 }
 
+const TITLES = { home: 'home.sh', skills: 'skills.conf', projects: 'projects.md', contact: 'contact.sh' };
+
 // ----------------------------------------------------------------- screens
 export function createScreens({ renderer, stops, screens, onNeedsRender }) {
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const items = [];
+  let activeId = null;
 
   for (const stop of stops) {
     const mesh = screens.byName.get(stop.mesh);
-    if (!mesh) {
-      console.warn('[screens] mesh not found:', stop.mesh);
-      continue;
-    }
+    if (!mesh) { console.warn('[screens] mesh not found:', stop.mesh); continue; }
 
     const canvas = document.createElement('canvas');
     canvas.width = W;
@@ -259,60 +249,38 @@ export function createScreens({ renderer, stops, screens, onNeedsRender }) {
     texture.minFilter = THREE.LinearMipmapLinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.generateMipmaps = true;
-    // glTF screen quads use v=1 at the geometric top, so the canvas must be
-    // flipped on upload (CanvasTexture default) to sit upright on the screen.
+    // glTF screen quads use v=1 at the geometric top, so flip on upload.
     texture.flipY = true;
 
-    const material = new THREE.MeshBasicMaterial({
-      map: texture,
-      toneMapped: false,
-      side: THREE.DoubleSide,
-    });
+    const material = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false, side: THREE.DoubleSide });
     mesh.material = material;
 
     const item = {
-      stop,
-      mesh,
-      title: stop.id === 'contact' ? 'contact.sh' : `${stop.id}.${stop.id === 'skills' ? 'conf' : stop.id === 'home' ? 'sh' : 'md'}`,
+      stop, mesh, title: TITLES[stop.id] || stop.id,
       lines: CONTENT[stop.id](),
-      canvas,
-      ctx,
-      texture,
-      hitRects: [],
-      reveal: Infinity,
-      chars: 0,
-      dirty: true,
+      canvas, ctx, texture, material,
+      hitRects: [], reveal: Infinity, chars: 0,
+      typing: false, tStart: null, blinkOn: true, dirty: true,
     };
     item.chars = totalChars(item.lines);
-
-    // If the mesh somehow lacks UVs, fall back to a plane over its bounds.
-    const uv = mesh.geometry.getAttribute('uv');
-    if (!uv) {
-      console.warn('[screens] no UVs on', stop.mesh, '- adding overlay plane');
-      addOverlayPlane(item);
-    }
-
     items.push(item);
   }
 
-  function addOverlayPlane(item) {
-    const geo = item.mesh.geometry;
-    geo.computeBoundingBox();
-    const box = geo.boundingBox;
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(size.x, size.y), item.mesh.material);
-    const centre = new THREE.Vector3();
-    box.getCenter(centre);
-    plane.position.copy(centre);
-    plane.position.z += 0.001;
-    item.mesh.add(plane);
-  }
+  const byMesh = new Map(items.map((i) => [i.mesh, i]));
+  const pickMeshes = items.map((i) => i.mesh);
 
   function redraw(item) {
     item.hitRects.length = 0;
     drawChrome(item.ctx, item.title);
-    drawLines(item.ctx, item.lines, item.reveal, item.hitRects);
+    const cursor = drawLines(item.ctx, item.lines, item.reveal, item.hitRects);
+
+    if (item.stop.id === activeId && cursor && item.blinkOn) {
+      const ctx = item.ctx;
+      ctx.font = `400 ${cursor.size}px ${FONT}`;
+      const cw = ctx.measureText('M').width * 0.62;
+      ctx.fillStyle = C.green;
+      ctx.fillRect(cursor.x + 2, cursor.y + 2, cw, cursor.size);
+    }
     item.texture.needsUpdate = true;
     item.dirty = false;
   }
@@ -322,30 +290,79 @@ export function createScreens({ renderer, stops, screens, onNeedsRender }) {
     onNeedsRender && onNeedsRender();
   }
 
-  // Stage 4 will animate `reveal`; for now everything is fully drawn.
+  function find(id) { return items.find((i) => i.stop.id === id); }
+
   function setActive(id) {
-    const it = items.find((i) => i.stop.id === id);
-    if (!it) return;
-    if (it.reveal !== Infinity) {
-      it.reveal = Infinity;
-      it.dirty = true;
+    if (activeId && activeId !== id) {
+      const prev = find(activeId);
+      if (prev) { prev.reveal = Infinity; prev.typing = false; prev.dirty = true; }
     }
+    activeId = id;
+    const it = find(id);
+    if (!it) return;
+    if (REDUCED) {
+      it.reveal = Infinity;
+      it.typing = false;
+    } else {
+      it.reveal = 0;
+      it.typing = true;
+      it.tStart = null;
+      it.blinkOn = true;
+    }
+    it.dirty = true;
+    onNeedsRender && onNeedsRender();
   }
 
-  function update() {
+  // Advance typing + blink. Returns true if any canvas needs a re-render.
+  function update(now) {
     let changed = false;
     for (const it of items) {
+      if (it.typing && it.stop.id === activeId) {
+        if (it.tStart == null) it.tStart = now;
+        it.reveal = Math.min(it.chars, (now - it.tStart) / CONFIG.screens.typeMs);
+        if (it.reveal >= it.chars) it.typing = false;
+        it.dirty = true;
+      }
+      if (it.stop.id === activeId && !REDUCED) {
+        const on = Math.floor(now / CONFIG.screens.blinkMs) % 2 === 0;
+        if (on !== it.blinkOn) { it.blinkOn = on; it.dirty = true; }
+      }
       if (it.dirty) { redraw(it); changed = true; }
     }
-    if (changed) onNeedsRender && onNeedsRender();
+    return changed;
   }
 
-  return {
-    items,
-    drawAll,
-    setActive,
-    update,
-    redraw,
-    getByMesh: (name) => items.find((i) => i.mesh.name === name),
-  };
+  // ---- link picking -------------------------------------------------------
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  function pick(clientX, clientY, camera, domElement) {
+    const rect = domElement.getBoundingClientRect();
+    pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(pickMeshes, false);
+    for (const h of hits) {
+      if (!h.uv) continue;
+      const it = byMesh.get(h.object);
+      if (!it) continue;
+      const cx = h.uv.x * W;
+      const cy = (1 - h.uv.y) * H; // flipY texture -> canvas row
+      for (const r of it.hitRects) {
+        if (cx >= r.x - 6 && cx <= r.x + r.w + 6 && cy >= r.y - 6 && cy <= r.y + r.h + 6) {
+          return { url: r.url, label: r.label, stop: it.stop.id };
+        }
+      }
+    }
+    return null;
+  }
+
+  function dispose() {
+    for (const it of items) {
+      it.texture.dispose();
+      it.material.dispose();
+    }
+  }
+
+  return { items, drawAll, setActive, update, redraw, pick, dispose, find };
 }
