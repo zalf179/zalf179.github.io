@@ -1,861 +1,145 @@
 ﻿<!DOCTYPE html>
-<html class="dark" lang="en">
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Zalfy Portfolio</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Muhammad Rizal Fadhillah · DevSecOps Architect</title>
+  <meta name="description" content="Muhammad Rizal Fadhillah — DevSecOps Architect &amp; Student. An interactive 3D room you scroll through.">
 
-    <!-- Favicon Terminal Matrix/Cyberpunk -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='15' y='65' fill='%2322c55e' font-family='monospace' font-weight='bold' font-size='55'>&gt;_</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='15' y='65' fill='%2322c55e' font-family='monospace' font-weight='bold' font-size='55'>&gt;_</text></svg>">
 
-    <!-- Tailwind CSS with Forms and Container Queries Plugins -->
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-
-    <!-- Tailwind Configuration matching DESIGN.md -->
-    <script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            "colors": {
-                    "outline-variant": "#3b4b37",
-                    "primary-container": "#00ff41",
-                    "surface-container-high": "#262a31",
-                    "secondary-fixed-dim": "#adc7ff",
-                    "inverse-on-surface": "#2d3137",
-                    "surface-container": "#1c2026",
-                    "inverse-primary": "#006e16",
-                    "on-error-container": "#ffdad6",
-                    "on-primary-fixed": "#002203",
-                    "error-container": "#93000a",
-                    "surface-variant": "#31353c",
-                    "on-primary-container": "#007117",
-                    "on-tertiary-fixed-variant": "#8e101c",
-                    "surface-container-lowest": "#0a0e14",
-                    "tertiary-fixed-dim": "#ffb3af",
-                    "on-primary-fixed-variant": "#00530e",
-                    "on-secondary": "#002e68",
-                    "tertiary": "#fff7f6",
-                    "primary-fixed-dim": "#00e639",
-                    "on-tertiary": "#68000e",
-                    "tertiary-fixed": "#ffdad7",
-                    "on-surface": "#dfe2eb",
-                    "surface-container-highest": "#31353c",
-                    "surface-tint": "#00e639",
-                    "secondary-fixed": "#d8e2ff",
-                    "primary": "#ebffe2",
-                    "on-surface-variant": "#b9ccb2",
-                    "on-secondary-fixed-variant": "#004493",
-                    "outline": "#84967e",
-                    "on-background": "#dfe2eb",
-                    "on-secondary-container": "#00285b",
-                    "inverse-surface": "#dfe2eb",
-                    "on-tertiary-container": "#b32e33",
-                    "on-primary": "#003907",
-                    "tertiary-container": "#ffd2cf",
-                    "on-secondary-fixed": "#001a41",
-                    "background": "#10141a",
-                    "secondary": "#adc7ff",
-                    "error": "#ffb4ab",
-                    "surface-bright": "#353940",
-                    "on-tertiary-fixed": "#410005",
-                    "secondary-container": "#4a8eff",
-                    "on-error": "#690005",
-                    "surface-container-low": "#181c22",
-                    "surface-dim": "#10141a",
-                    "surface": "#10141a",
-                    "primary-fixed": "#72ff70"
-            },
-            "borderRadius": {
-                    "DEFAULT": "0.125rem",
-                    "lg": "0.25rem",
-                    "xl": "0.5rem",
-                    "full": "0.75rem"
-            },
-            "spacing": {
-                    "container-max": "1200px",
-                    "gutter": "24px",
-                    "margin-desktop": "64px",
-                    "base": "8px",
-                    "margin-mobile": "24px"
-            },
-            "fontFamily": {
-                    "headline-lg-mobile": ["Geist"],
-                    "body-md": ["Hanken Grotesk"],
-                    "body-lg": ["Hanken Grotesk"],
-                    "code-sm": ["JetBrains Mono"],
-                    "headline-lg": ["Geist"],
-                    "headline-md": ["Geist"],
-                    "label-mono": ["JetBrains Mono"]
-            },
-            "fontSize": {
-                    "headline-lg-mobile": ["32px", {"lineHeight": "1.2", "fontWeight": "700"}],
-                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
-                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
-                    "code-sm": ["13px", {"lineHeight": "1.5", "fontWeight": "400"}],
-                    "headline-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
-                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}],
-                    "label-mono": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "500"}]
-            }
-          },
-        },
+  <!-- Three.js (pinned) + addons via importmap. MeshoptDecoder lives under addons/libs. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
       }
-    </script>
+    }
+  </script>
 
-    <!-- Three.js via ES modules / importmap (pinned 0.160.0) -->
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-        }
-      }
-    </script>
+  <!-- GSAP + ScrollTrigger (pinned) -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 
-    <!-- GSAP + ScrollTrigger (pinned 3.12.5) -->
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <!-- Monospace font used by the on-screen terminal textures -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700;800&amp;family=Hanken+Grotesk:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=block" rel="stylesheet">
-
-    <!-- Enable-JS flag: reveal/hide animations only run when JS is available.
-         Without it (noscript) all content stays visible by default. -->
-    <script>document.documentElement.classList.add('js');</script>
-
-    <!-- Site styles -->
-    <link rel="stylesheet" href="css/style.css">
-
-    <!--
-      Local testing: gltf files cannot be served over file://, so run a server:
-        npx serve .   OR   python3 -m http.server 8000
-      then open http://localhost:8000
-    -->
+  <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="bg-background text-on-background font-body-md selection:bg-primary-container selection:text-on-primary-container overflow-x-hidden">
+<body>
+  <!-- The whole experience is a single fullscreen WebGL canvas. No HTML overlay text. -->
+  <canvas id="scene-canvas"></canvas>
 
-    <noscript>
-        <div class="noscript-warn">JavaScript is disabled — the 3D room cannot render, but the full portfolio below is still available. Enable JavaScript for the scroll experience.</div>
-    </noscript>
+  <!-- Friendly error banner (shown only when the scene cannot render). -->
+  <div id="scene-error" hidden role="alert">
+    <strong>[ERROR]</strong> <span data-message></span>
+  </div>
 
-    <!-- Full-screen 3D backdrop (driven by js/main.js) -->
-    <canvas id="scene-canvas" aria-hidden="true"></canvas>
-    <div id="scene-error" hidden role="alert">
-        <span class="font-label-mono font-bold text-error">[ERROR] SCENE_UNAVAILABLE</span>
-        <span data-message></span> The portfolio content on this page remains fully functional.
+  <!-- Minimal loading indicator, driven by THREE.LoadingManager progress. -->
+  <div id="loader" role="status" aria-live="polite">
+    <div class="loader-inner">
+      <div class="loader-logo">&gt;_</div>
+      <div class="loader-bar"><span id="loader-fill"></span></div>
+      <div class="loader-label" id="loader-label">LOADING 0%</div>
     </div>
+  </div>
 
-    <!-- Loading screen -->
-    <div id="loader" role="status" aria-label="Loading 3D scene">
-        <div class="loader-box">
-            <div class="loader-logo">&gt;_</div>
-            <div class="loader-track"><div id="loader-fill"></div></div>
-            <div class="loader-label" id="loader-label">LOADING_SCENE 0%</div>
-        </div>
-    </div>
+  <!-- The only controls: 4 progress dots. -->
+  <nav id="dots" aria-label="Scroll stops">
+    <button type="button" data-stop="0" aria-label="Home" title="Home"></button>
+    <button type="button" data-stop="1" aria-label="Skills" title="Skills"></button>
+    <button type="button" data-stop="2" aria-label="Projects" title="Projects"></button>
+    <button type="button" data-stop="3" aria-label="Contact" title="Contact"></button>
+  </nav>
 
-    <!-- Section navigation dots (right edge) -->
-    <nav id="dots-nav" aria-label="Section navigation">
-        <a href="#home" data-target="#home" aria-label="Home" title="Home" class="active"></a>
-        <a href="#skills" data-target="#skills" aria-label="Skills" title="Skills"></a>
-        <a href="#projects" data-target="#projects" aria-label="Projects" title="Projects"></a>
-        <a href="#contact" data-target="#contact" aria-label="Contact" title="Contact"></a>
-    </nav>
+  <!-- Tiny scroll hint, fades out after the first scroll. -->
+  <div id="scroll-hint" aria-hidden="true">SCROLL TO EXPLORE</div>
 
-    <!-- Top Navigation Bar -->
-    <header class="fixed top-0 left-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-outline-variant">
-        <div class="max-w-container-max mx-auto px-gutter py-4 flex items-center justify-end md:grid md:grid-cols-3">
-            <!-- Desktop Navigation Links (centered column) -->
-            <div class="col-start-2 col-span-1 flex justify-center">
-                <nav class="hidden md:flex items-center gap-8">
-                    <a id="nav-home" class="nav-link font-label-mono text-label-mono text-primary-container font-bold border-b-2 border-primary-container pb-1 transition-all" href="#home">Home</a>
-                    <a id="nav-skills" class="nav-link font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container transition-colors" href="#skills">Skills</a>
-                    <a id="nav-projects" class="nav-link font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container transition-colors" href="#projects">Projects</a>
-                    <a id="nav-contact" class="nav-link font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container transition-colors" href="#contact">Contact</a>
-                </nav>
-            </div>
+  <!-- Scrollable height: the canvas is pinned; this spacer drives the scrub. -->
+  <div id="spacer" aria-hidden="true"></div>
 
-            <!-- Right Actions -->
-            <div class="col-start-3 flex justify-end items-center gap-4">
-                <a href="Resume.pdf" target="_blank" rel="noopener noreferrer" class="hidden sm:inline-block bg-primary-container/10 border border-primary-container/40 text-primary-container hover:bg-primary-container hover:text-on-primary font-bold px-5 py-2 rounded-DEFAULT active:scale-95 transition-all text-label-mono text-center text-xs tracking-wider">
-                    RESUME.PDF
-                </a>
-
-                <!-- Mobile Hamburger Button -->
-                <button id="menu-btn" class="md:hidden text-on-background hover:text-primary-container focus:outline-none" aria-label="Toggle Menu">
-                    <span class="material-symbols-outlined text-[28px]" id="menu-icon">menu</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Mobile Drawer Backdrop -->
-        <div id="mobile-backdrop" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm md:hidden hidden"></div>
-
-        <!-- Mobile Slide-In Navigation Drawer -->
-        <div id="mobile-menu" class="fixed inset-y-0 right-0 w-72 max-w-[85vw] z-[70] md:hidden bg-surface-container-lowest border-l border-outline-variant shadow-2xl transform translate-x-full transition-transform duration-300 ease-out">
-            <div class="flex flex-col h-full">
-                <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant">
-                    <span class="font-label-mono text-xs font-bold tracking-widest text-primary-container">NAVIGATION</span>
-                    <button id="menu-close" class="text-on-surface-variant hover:text-primary-container focus:outline-none" aria-label="Close Menu">
-                        <span class="material-symbols-outlined text-[28px]" id="menu-icon-close">close</span>
-                    </button>
-                </div>
-                <nav class="flex flex-col px-2 py-4 flex-1">
-                    <a class="mobile-nav-link font-label-mono text-label-mono text-primary-container font-bold px-4 py-4 rounded-DEFAULT hover:bg-surface-container transition-colors border-b border-outline-variant/50" href="#home">Home</a>
-                    <a class="mobile-nav-link font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container px-4 py-4 rounded-DEFAULT hover:bg-surface-container transition-colors border-b border-outline-variant/50" href="#skills">Skills</a>
-                    <a class="mobile-nav-link font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container px-4 py-4 rounded-DEFAULT hover:bg-surface-container transition-colors border-b border-outline-variant/50" href="#projects">Projects</a>
-                    <a class="mobile-nav-link font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container px-4 py-4 rounded-DEFAULT hover:bg-surface-container transition-colors border-b border-outline-variant/50" href="#contact">Contact</a>
-                </nav>
-                <div class="p-5 border-t border-outline-variant">
-                    <a href="Resume.pdf" target="_blank" rel="noopener noreferrer" class="block w-full bg-primary-container text-on-primary font-bold px-6 py-3 rounded-DEFAULT text-center text-label-mono active:scale-95 transition-all">
-                        RESUME.PDF
-                    </a>
-                </div>
-            </div>
-        </div>
+  <!-- Accessibility / SEO layer: real text + links, clipped off-screen (not display:none).
+       Also doubles as the static fallback when WebGL is unavailable. -->
+  <div id="a11y">
+    <header>
+      <p>visitor@sec-ops-portfolio:~$ whoami</p>
+      <h1>Muhammad Rizal Fadhillah</h1>
+      <p>DevSecOps Architect &amp; Student &middot; aspiring DevOps &amp; cyber-security engineer building secure, automated cloud-native infrastructure.</p>
+      <nav aria-label="Profiles">
+        <a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href="https://medium.com/@zalfd" target="_blank" rel="noopener noreferrer">Medium</a>
+        <a href="Resume.pdf" target="_blank" rel="noopener noreferrer">Resume.pdf</a>
+      </nav>
     </header>
 
-    <main class="relative">
+    <section aria-labelledby="a11y-skills">
+      <h2 id="a11y-skills">Technical Stack &amp; Strategic Insights</h2>
+      <p>Architecting secure, resilient infrastructure through a blend of offensive security methodologies and automated cloud-native engineering.</p>
+      <h3>Security</h3>
+      <ul>
+        <li>DAST/SAST — Automated vulnerability scans, dependency auditing, and container scanning.</li>
+        <li>Pentesting — Network/application security evaluation, threat emulation, and hardening.</li>
+        <li>SIEM/SOC — Intrusion monitoring, threat hunting engineering, and log aggregation.</li>
+      </ul>
+      <h3>Cloud</h3>
+      <ul>
+        <li>AWS — Learning</li>
+        <li>Azure — Planned</li>
+        <li>GCP — Planned</li>
+      </ul>
+      <h3>DevOps</h3>
+      <ul>
+        <li>Docker, Kubernetes, Terraform, Ansible, GitHub Actions</li>
+        <li>Infrastructure as Code — Version-controlled, peer-reviewed cloud environments with Terraform, CloudFormation, and Ansible.</li>
+        <li>DevSecOps Pipelines — Integrating vulnerability scans, policy gates, and automated security checks directly inside CI/CD code.</li>
+        <li>Container Security — Base image hardening, policy-driven admissions controls, registry signature verification, and runtime security.</li>
+      </ul>
+    </section>
 
-        <!-- 1. Hero Section -->
-        <section id="home" class="relative flex items-center overflow-hidden">
-            <!-- Soft glow behind the intro card -->
-            <div class="absolute inset-0 z-0 pointer-events-none" aria-hidden="true">
-                <div class="absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[350px] bg-primary-container/10 blur-[120px] rounded-full"></div>
-            </div>
+    <section aria-labelledby="a11y-projects">
+      <h2 id="a11y-projects">Engineered Infrastructure &amp; Defensive Systems</h2>
+      <p>A custom compilation of my technical DevOps write-ups and pipeline implementations.</p>
+      <ul>
+        <li><a href="https://medium.com/@zalfd/building-a-python-ci-cd-pipeline-errors-false-positives-and-lessons-learned-f75743c833bb" target="_blank" rel="noopener noreferrer">Building a Python CI/CD Pipeline: Errors, False Positives, and Lessons Learned</a> — environment drift, dependency management and scanner false positives.</li>
+        <li><a href="https://medium.com/@zalfd/building-a-centralized-logging-system-with-elk-stack-docker-on-minimal-hardware-72ee2b960ccb" target="_blank" rel="noopener noreferrer">Building a Centralized Logging System with ELK Stack &amp; Docker on Minimal Hardware</a> — resource-efficient Elasticsearch, Logstash, Kibana.</li>
+        <li><a href="https://medium.com/@zalfd/blocking-ssh-brute-force-with-active-response-in-wazuh-a8aadac34251" target="_blank" rel="noopener noreferrer">Blocking SSH Brute Force with Active Response in Wazuh</a> — real-time firewall blocking of offending hosts.</li>
+        <li><a href="https://github.com/zalf179/SOC_Home_Lab" target="_blank" rel="noopener noreferrer">Automated Threat Response: From Apache Log to Firewall Block</a> — Wazuh + n8n + VirusTotal + iptables SOC home lab.</li>
+        <li><a href="https://medium.com/@zalfd/building-an-enterprise-grade-devsecops-gitops-pipeline-from-code-to-monitoring-with-argocd-78204a02bf25" target="_blank" rel="noopener noreferrer">Building an Enterprise-Grade DevSecOps &amp; GitOps Pipeline</a> — <a href="https://github.com/flazel/learn_ci-cd" target="_blank" rel="noopener noreferrer">app repo</a>, <a href="https://github.com/flazel/learn_ci-cd-gitops" target="_blank" rel="noopener noreferrer">gitops repo</a>.</li>
+      </ul>
+    </section>
 
-            <div class="hero-card relative z-10 reveal" style="--reveal-delay: 150ms">
-                <p class="hero-prompt">visitor@sec-ops-portfolio:~$ whoami</p>
-                <h1 class="hero-name">Muhammad Rizal Fadhillah</h1>
-                <p class="hero-role">DevSecOps Architect &amp; Student · aspiring DevOps &amp; cyber-security engineer building secure, automated cloud-native infrastructure.</p>
+    <section aria-labelledby="a11y-contact">
+      <h2 id="a11y-contact">Ready to Secure Your Velocity?</h2>
+      <p>Currently open to architectural consultation, pipeline auditing, or senior-level DevSecOps positions. Let's build something unbreakable.</p>
+      <ul>
+        <li><a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">github.com/zalf179</a></li>
+        <li><a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">linkedin.com/in/rizalfadh</a></li>
+        <li><a href="https://medium.com/@zalfd" target="_blank" rel="noopener noreferrer">medium.com/@zalfd</a></li>
+        <li><a href="Resume.pdf" target="_blank" rel="noopener noreferrer">Resume.pdf</a></li>
+        <li><a href="mailto:muhammadrizalfadhillah@gmail.com">muhammadrizalfadhillah@gmail.com</a></li>
+      </ul>
+    </section>
+  </div>
 
-                <div class="hero-links">
-                    <a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">GITHUB</a>
-                    <a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">LINKEDIN</a>
-                    <a href="https://medium.com/@zalfd" target="_blank" rel="noopener noreferrer">MEDIUM</a>
-                    <a href="Resume.pdf" target="_blank" rel="noopener noreferrer">RESUME.PDF</a>
-                </div>
-
-                <p class="scroll-hint">SCROLL_TO_EXPLORE_ROOM</p>
-            </div>
-        </section>
-
-        <!-- 2. Skills & Tech Stack Section -->
-        <section id="skills" class="py-24 relative flex items-center">
-            <div class="max-w-container-max mx-auto px-gutter w-full">
-                <!-- Section Header -->
-                <header class="mb-16 reveal section-header-card">
-                    <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-4" data-decode="Technical Stack &amp; Strategic Insights">Technical Stack &amp; Strategic Insights</h2>
-                    <p class="text-on-surface-variant max-w-2xl font-body-lg text-body-lg">
-                        Architecting secure, resilient infrastructure through a blend of offensive security methodologies and automated cloud-native engineering.
-                    </p>
-                </header>
-
-                <h3 class="font-label-mono text-label-mono text-primary-container mb-8 flex items-center gap-2">
-                    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">terminal</span> CORE_CAPABILITIES
-                </h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <!-- Security Card (8 Cols on Desktop) -->
-                    <div class="md:col-span-8 card-glass p-gutter relative overflow-hidden group hover:border-primary-container/50 transition-colors reveal" style="--reveal-delay: 0ms">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-primary-container"></div>
-                        <div class="flex justify-between items-start mb-12">
-                            <div>
-                                <span class="font-label-mono text-label-mono text-on-surface-variant">01 // SECURITY</span>
-                                <h4 class="font-headline-md text-headline-md mt-2">Offensive &amp; Defensive Security</h4>
-                            </div>
-                            <span class="material-symbols-outlined text-primary-container text-4xl">shield_lock</span>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div class="border border-outline-variant p-4 hover:border-primary-container transition-colors bg-surface-container-low/60">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
-                                    <span class="font-label-mono text-label-mono">DAST/SAST</span>
-                                </div>
-                                <p class="text-xs text-on-surface-variant">Automated vulnerability scans, dependency auditing, and container scanning.</p>
-                            </div>
-                            <div class="border border-outline-variant p-4 hover:border-primary-container transition-colors bg-surface-container-low/60">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
-                                    <span class="font-label-mono text-label-mono">Pentesting</span>
-                                </div>
-                                <p class="text-xs text-on-surface-variant">Network/application security evaluation, threat emulation, and hardening.</p>
-                            </div>
-                            <div class="border border-outline-variant p-4 hover:border-primary-container transition-colors bg-surface-container-low/60">
-                                <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
-                                    <span class="font-label-mono text-label-mono">SIEM/SOC</span>
-                                </div>
-                                <p class="text-xs text-on-surface-variant">Intrusion monitoring, threat hunting engineering, and log aggregation.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Cloud Card (4 Cols on Desktop) -->
-                    <div class="md:col-span-4 card-glass p-gutter relative group hover:border-secondary/50 transition-colors reveal" style="--reveal-delay: 120ms">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-secondary"></div>
-                        <span class="font-label-mono text-label-mono text-on-surface-variant">02 // CLOUD</span>
-                        <h4 class="font-headline-md text-headline-md mt-2 mb-8">Infrastructure</h4>
-                        <ul class="space-y-4">
-                            <li class="flex items-center justify-between border-b border-outline-variant pb-2">
-                                <span class="font-label-mono text-label-mono">AWS</span>
-                                <span class="text-secondary font-label-mono text-xs flex items-center gap-1.5">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> Learning
-                                </span>
-                            </li>
-                            <li class="flex items-center justify-between border-b border-outline-variant pb-2">
-                                <span class="font-label-mono text-label-mono">Azure</span>
-                                <span class="text-secondary font-label-mono text-xs flex items-center gap-1.5">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span> Planned
-                                </span>
-                            </li>
-                            <li class="flex items-center justify-between border-b border-outline-variant pb-2">
-                                <span class="font-label-mono text-label-mono">GCP</span>
-                                <span class="text-on-surface-variant font-label-mono text-xs flex items-center gap-1.5">
-                                    <span class="w-1.5 h-1.5 bg-outline rounded-full"></span> Planned
-                                </span>
-                            </li>
-                        </ul>
-                        <div class="mt-8 flex justify-center">
-                            <span class="material-symbols-outlined text-secondary text-6xl opacity-15">cloud</span>
-                        </div>
-                    </div>
-
-                    <!-- DevOps Card (12 Cols on Desktop) -->
-                    <div class="md:col-span-12 card-glass p-gutter relative hover:border-primary-container/30 transition-colors reveal" style="--reveal-delay: 240ms">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-secondary-fixed-dim"></div>
-                        <div class="flex flex-col md:flex-row md:items-center justify-between gap-8">
-                            <div>
-                                <span class="font-label-mono text-label-mono text-on-surface-variant">03 // DEVOPS</span>
-                                <h4 class="font-headline-md text-headline-md mt-2">Continuous Integration &amp; Deployment</h4>
-                            </div>
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-3 py-1 border border-outline-variant text-label-mono text-xs hover:bg-primary-container hover:text-on-primary transition-colors cursor-default">DOCKER</span>
-                                <span class="px-3 py-1 border border-outline-variant text-label-mono text-xs hover:bg-primary-container hover:text-on-primary transition-colors cursor-default">KUBERNETES</span>
-                                <span class="px-3 py-1 border border-outline-variant text-label-mono text-xs hover:bg-primary-container hover:text-on-primary transition-colors cursor-default">TERRAFORM</span>
-                                <span class="px-3 py-1 border border-outline-variant text-label-mono text-xs hover:bg-primary-container hover:text-on-primary transition-colors cursor-default">ANSIBLE</span>
-                                <span class="px-3 py-1 border border-outline-variant text-label-mono text-xs hover:bg-primary-container hover:text-on-primary transition-colors cursor-default">GITHUB_ACTIONS</span>
-                            </div>
-                        </div>
-                        <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div class="flex gap-4">
-                                <span class="material-symbols-outlined text-primary-container">alt_route</span>
-                                <div>
-                                    <h5 class="font-bold text-sm mb-1 uppercase tracking-wider text-on-surface">Infrastructure as Code</h5>
-                                    <p class="text-xs text-on-surface-variant">Version-controlled, peer-reviewed cloud environments with Terraform, CloudFormation, and Ansible.</p>
-                                </div>
-                            </div>
-                            <div class="flex gap-4">
-                                <span class="material-symbols-outlined text-primary-container">cycle</span>
-                                <div>
-                                    <h5 class="font-bold text-sm mb-1 uppercase tracking-wider text-on-surface">DevSecOps Pipelines</h5>
-                                    <p class="text-xs text-on-surface-variant">Integrating vulnerability scans, policy gates, and automated security checks directly inside CI/CD code.</p>
-                                </div>
-                            </div>
-                            <div class="flex gap-4">
-                                <span class="material-symbols-outlined text-primary-container">box_add</span>
-                                <div>
-                                    <h5 class="font-bold text-sm mb-1 uppercase tracking-wider text-on-surface">Container Security</h5>
-                                    <p class="text-xs text-on-surface-variant">Base image hardening, policy-driven admissions controls, registry signature verification, and runtime security.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 3. Projects & Repository Explorer Section -->
-        <section id="projects" class="py-24 relative flex items-center">
-            <div class="max-w-container-max mx-auto px-gutter w-full">
-                <!-- Section Header -->
-                <div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6 reveal section-header-card">
-                    <div>
-                        <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg max-w-3xl" data-decode="Engineered Infrastructure &amp; Defensive Systems">
-                            Engineered Infrastructure &amp; Defensive Systems
-                        </h2>
-                        <p class="font-body-lg text-body-lg text-on-surface-variant mt-2 max-w-2xl">
-                            A custom compilation of my technical DevOps write-ups and pipeline implementations.
-                        </p>
-                    </div>
-                    <div class="flex items-center">
-                        <span class="font-label-mono text-label-mono text-primary-container hover:underline cursor-pointer hidden md:block uppercase tracking-wider">
-                            ACTIVE_NODES: 5_TOTAL
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Projects Grid -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-gutter" id="projects-grid">
-
-                    <!-- Project 1: Python CI/CD Pipeline Writeup (Medium Article) -->
-                    <div class="project-card group relative card-glass p-8 transition-all duration-300 neon-glow reveal tilt-card" style="--reveal-delay: 0ms" data-category="appsec">
-                        <div class="flex justify-between items-start mb-6 font-label-mono text-label-mono">
-                            <span class="text-secondary flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#4a8eff]"></span>
-                                STATUS: PUBLISHED
-                            </span>
-                            <span class="text-on-surface-variant">WRITE_UP</span>
-                        </div>
-                        <h3 class="font-headline-md text-headline-md mb-4 text-on-surface group-hover:text-primary-container transition-colors">Building a Python CI/CD Pipeline: Errors, False Positives, and Lessons Learned</h3>
-                        <p class="font-body-md text-body-md text-on-surface-variant mb-8">A technical write-up detailing the challenges of environment drift, dependency management (pip-tools/poetry), and mitigating security scanner (Bandit, Semgrep) false positives.</p>
-
-                        <div class="space-y-6">
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: PYTHON
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: CI_CD
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span> PROFICIENT: LINTING
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-8 pt-6 border-t border-outline-variant flex justify-between items-center">
-                            <a href="https://medium.com/@zalfd/building-a-python-ci-cd-pipeline-errors-false-positives-and-lessons-learned-f75743c833bb" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                <span class="material-symbols-outlined text-[18px]">menu_book</span>
-                                MEDIUM_ARTICLE
-                            </a>
-                            <span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </div>
-                    </div>
-
-                    <!-- Project 2: Centralized Logging with ELK Stack & Docker (Medium Article) -->
-                    <div class="project-card group relative card-glass p-8 transition-all duration-300 neon-glow reveal tilt-card" style="--reveal-delay: 100ms" data-category="secops">
-                        <div class="flex justify-between items-start mb-6 font-label-mono text-label-mono">
-                            <span class="text-secondary flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#4a8eff]"></span>
-                                STATUS: PUBLISHED
-                            </span>
-                            <span class="text-on-surface-variant">WRITE_UP</span>
-                        </div>
-                        <h3 class="font-headline-md text-headline-md mb-4 text-on-surface group-hover:text-primary-container transition-colors">Building a Centralized Logging System with ELK Stack &amp; Docker on Minimal Hardware</h3>
-                        <p class="font-body-md text-body-md text-on-surface-variant mb-8">A technical guide on orchestrating a resource-efficient ELK Stack (Elasticsearch, Logstash, Kibana) using Docker-Compose, tuned to operate reliably under strict hardware constraints.</p>
-
-                        <div class="space-y-6">
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: DOCKER
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: ELK_STACK
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span> PROFICIENT: LOGGING
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-8 pt-6 border-t border-outline-variant flex justify-between items-center">
-                            <a href="https://medium.com/@zalfd/building-a-centralized-logging-system-with-elk-stack-docker-on-minimal-hardware-72ee2b960ccb" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                <span class="material-symbols-outlined text-[18px]">menu_book</span>
-                                MEDIUM_ARTICLE
-                            </a>
-                            <span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </div>
-                    </div>
-
-                    <!-- Project 3: Blocking SSH Brute Force with Wazuh Active Response (Medium Article) -->
-                    <div class="project-card group relative card-glass p-8 transition-all duration-300 neon-glow reveal tilt-card" style="--reveal-delay: 200ms" data-category="secops">
-                        <div class="flex justify-between items-start mb-6 font-label-mono text-label-mono">
-                            <span class="text-secondary flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#4a8eff]"></span>
-                                STATUS: PUBLISHED
-                            </span>
-                            <span class="text-on-surface-variant">WRITE_UP</span>
-                        </div>
-                        <h3 class="font-headline-md text-headline-md mb-4 text-on-surface group-hover:text-primary-container transition-colors">Blocking SSH Brute Force with Active Response in Wazuh</h3>
-                        <p class="font-body-md text-body-md text-on-surface-variant mb-8">A technical guide demonstrating the setup of Wazuh's Active Response mechanism to detect SSH brute-force attacks and block host IPs in real-time using firewall rules.</p>
-
-                        <div class="space-y-6">
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: WAZUH
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: FIREWALL
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span> PROFICIENT: LINUX_SEC
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-8 pt-6 border-t border-outline-variant flex justify-between items-center">
-                            <a href="https://medium.com/@zalfd/blocking-ssh-brute-force-with-active-response-in-wazuh-a8aadac34251" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                <span class="material-symbols-outlined text-[18px]">menu_book</span>
-                                MEDIUM_ARTICLE
-                            </a>
-                            <span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </div>
-                    </div>
-                    <!-- Project 4: SOC Home Lab (GitHub Repository) -->
-                    <div class="project-card group relative card-glass p-8 transition-all duration-300 neon-glow reveal tilt-card" style="--reveal-delay: 300ms" data-category="secops">
-                        <div class="flex justify-between items-start mb-6 font-label-mono text-label-mono">
-                            <span class="text-secondary flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#4a8eff]"></span>
-                                STATUS: PUBLISHED
-                            </span>
-                            <span class="text-on-surface-variant">WRITE_UP</span>
-                        </div>
-                        <h3 class="font-headline-md text-headline-md mb-4 text-on-surface group-hover:text-primary-container transition-colors">Automated Threat Response: From Apache Log to Firewall Block</h3>
-                        <p class="font-body-md text-body-md text-on-surface-variant mb-8">A SOC home lab that automates detection of malicious Apache logs with Wazuh, enriches alerts via n8n and VirusTotal, and blocks IPs using iptables.</p>
-                        <div class="space-y-6">
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: WAZUH
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: N8N
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span> PROFICIENT: IPTABLES
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-8 pt-6 border-t border-outline-variant flex justify-between items-center">
-                            <a href="https://github.com/zalf179/SOC_Home_Lab" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                <span class="material-symbols-outlined text-[18px]">code</span>
-                                GITHUB_REPO
-                            </a>
-                            <span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </div>
-                    </div>
-
-                    <!-- Project 5: Enterprise DevSecOps & GitOps Pipeline (Medium Article) -->
-                    <div class="project-card group relative card-glass p-8 transition-all duration-300 neon-glow reveal tilt-card" style="--reveal-delay: 400ms" data-category="secops">
-                        <div class="flex justify-between items-start mb-6 font-label-mono text-label-mono">
-                            <span class="text-secondary flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_8px_#4a8eff]"></span>
-                                STATUS: PUBLISHED
-                            </span>
-                            <span class="text-on-surface-variant">WRITE_UP</span>
-                        </div>
-                        <h3 class="font-headline-md text-headline-md mb-4 text-on-surface group-hover:text-primary-container transition-colors">Building an Enterprise-Grade DevSecOps &amp; GitOps Pipeline: From Code to Monitoring with ArgoCD</h3>
-                        <p class="font-body-md text-body-md text-on-surface-variant mb-8">A complete end-to-end pipeline walkthrough — from developer push to real-time observability. Shift-left security with SonarQube, Gitleaks, pip-audit, and Trivy; declarative continuous delivery via ArgoCD; and monitoring with the Kube-Prometheus-Stack.</p>
-
-                        <div class="space-y-6">
-                            <div class="flex flex-wrap gap-2">
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: ARGOCD
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> EXPERT: GITOPS
-                                </span>
-                                <span class="px-3 py-1 border border-outline-variant rounded-full font-label-mono text-[11px] flex items-center gap-2 text-on-surface-variant">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span> PROFICIENT: KUBERNETES
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-8 pt-6 border-t border-outline-variant flex flex-wrap justify-between items-center gap-3">
-                            <div class="flex flex-wrap items-center gap-4">
-                                <a href="https://medium.com/@zalfd/building-an-enterprise-grade-devsecops-gitops-pipeline-from-code-to-monitoring-with-argocd-78204a02bf25" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                    <span class="material-symbols-outlined text-[18px]">menu_book</span>
-                                    MEDIUM_ARTICLE
-                                </a>
-                                <a href="https://github.com/flazel/learn_ci-cd" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                    <span class="material-symbols-outlined text-[18px]">code</span>
-                                    APP_REPO
-                                </a>
-                                <a href="https://github.com/flazel/learn_ci-cd-gitops" target="_blank" rel="noopener noreferrer" class="font-label-mono text-label-mono text-secondary flex items-center gap-2 hover:underline">
-                                    <span class="material-symbols-outlined text-[18px]">code</span>
-                                    GITOPS_REPO
-                                </a>
-                            </div>
-                            <span class="material-symbols-outlined text-on-surface-variant group-hover:translate-x-1 transition-transform">arrow_forward</span>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </section>
-
-        <!-- 4. Terminal Contact Form Section -->
-        <section id="contact" class="py-24 relative flex items-center overflow-hidden">
-            <div class="max-w-container-max mx-auto px-gutter w-full">
-                <div class="mb-16 text-center reveal section-header-card">
-                    <h2 class="font-headline-lg text-headline-lg-mobile md:text-headline-lg mb-6" data-decode="Ready to Secure Your Velocity?">Ready to Secure Your Velocity?</h2>
-                    <p class="text-on-surface-variant font-body-lg max-w-2xl mx-auto mb-10">Currently open to architectural consultation, pipeline auditing, or senior-level DevSecOps positions. Let's build something unbreakable.</p>
-                </div>
-
-                <div class="max-w-3xl mx-auto card-glass shadow-2xl reveal" style="--reveal-delay: 120ms">
-                    <!-- Terminal Header -->
-                    <div class="bg-surface-variant/90 px-4 py-2 flex items-center justify-between border-b border-outline-variant rounded-t-[0.5rem]">
-                        <div class="flex gap-1.5">
-                            <div class="w-3 h-3 rounded-full bg-error"></div>
-                            <div class="w-3 h-3 rounded-full bg-secondary"></div>
-                            <div class="w-3 h-3 rounded-full bg-primary-container"></div>
-                        </div>
-                        <div class="font-label-mono text-xs text-on-surface-variant">bash - secure_comms.sh</div>
-                        <div class="w-12"></div>
-                    </div>
-                    <!-- Terminal Body -->
-                    <div class="p-8 font-label-mono text-sm md:text-body-md space-y-4">
-                        <div>
-                            <span class="text-primary-container">visitor@sec-ops-portfolio:~$</span> <span class="text-on-surface">./get_contact_info.sh</span>
-                        </div>
-                        <div class="space-y-2 text-on-surface-variant">
-                            <div><span class="text-primary-container">[+]</span> Primary Mail&nbsp;&nbsp;:</div>
-                            <div class="flex flex-wrap items-center gap-3 pl-6">
-                                <span class="text-on-surface break-all">muhammadrizalfadhillah@gmail.com</span>
-                                <button onclick="copyEmail()" class="border border-primary-container text-primary-container hover:bg-primary-container hover:text-on-primary transition-all px-3 py-1 text-xs rounded" type="button">COPY_MAIL</button>
-                                <a href="mailto:muhammadrizalfadhillah@gmail.com" class="border border-primary-container text-primary-container hover:bg-primary-container hover:text-on-primary transition-all px-3 py-1 text-xs rounded" target="_blank" rel="noopener noreferrer">SEND_MAIL</a>
-                            </div>
-                            <div><span class="text-primary-container">[+]</span> Professional&nbsp;:</div>
-                            <div class="pl-6">
-                                <a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer" class="text-primary-container hover:underline">linkedin.com/in/rizalfadh/</a>
-                            </div>
-                            <div><span class="text-primary-container">[+]</span> Repositories&nbsp;:</div>
-                            <div class="pl-6">
-                                <a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer" class="text-primary-container hover:underline">github.com/zalf179</a>
-                            </div>
-                        </div>
-                        <div class="pt-4 border-t border-outline-variant flex flex-wrap items-center gap-4">
-                            <a href="Resume.pdf" target="_blank" rel="noopener noreferrer" class="bg-primary-container text-on-primary font-bold px-5 py-2 rounded-DEFAULT text-xs tracking-wider active:scale-95 transition-all">
-                                DOWNLOAD_RESUME.PDF
-                            </a>
-                            <span class="text-primary-container">
-                                <span class="terminal-cursor"></span>&nbsp;[STATUS] Ready for encrypted communications.
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-surface-container-lowest border-t border-outline-variant">
-        <div class="max-w-container-max mx-auto px-gutter py-12 flex flex-col items-center justify-center gap-base">
-            <div class="flex gap-8 flex-wrap justify-center">
-                <a class="font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container transition-colors" href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">GitHub</a>
-                <a class="font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container transition-colors" href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                <a class="font-label-mono text-label-mono text-on-surface-variant hover:text-primary-container transition-colors" href="https://medium.com/@zalfd" target="_blank" rel="noopener noreferrer">Medium</a>
-            </div>
-            <div class="flex items-center gap-2 font-label-mono text-[10px] text-on-surface-variant/50">
-                <span class="w-2 h-2 rounded-full bg-primary-container/50 animate-pulse"></span>
-                V_4.0_3D_ROOM
-            </div>
-        </div>
-    </footer>
-
-    <!-- Scroll Progress Bar -->
-    <!-- CRT Scanline & Glitch Overlay -->
-    <div class="scanlines" aria-hidden="true">
-        <span class="scan-bar"></span>
+  <noscript>
+    <div class="noscript">
+      <p><strong>JavaScript is disabled.</strong> The 3D room cannot render, but the full portfolio is available below.</p>
+      <p>visitor@sec-ops-portfolio:~$ whoami</p>
+      <h1>Muhammad Rizal Fadhillah</h1>
+      <p>DevSecOps Architect &amp; Student &middot; aspiring DevOps &amp; cyber-security engineer building secure, automated cloud-native infrastructure.</p>
+      <nav aria-label="Profiles">
+        <a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        <a href="https://medium.com/@zalfd" target="_blank" rel="noopener noreferrer">Medium</a>
+        <a href="Resume.pdf" target="_blank" rel="noopener noreferrer">Resume.pdf</a>
+      </nav>
     </div>
+  </noscript>
 
-    <!-- Interactive Scripts (vanilla, no build step) -->
-    <script>
-        // 0. Always start at the top (Home) on page load / refresh
-        if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-        if (location.hash) {
-            history.replaceState(null, '', window.location.pathname + window.location.search);
-        }
-        window.scrollTo(0, 0);
-        window.addEventListener('load', () => window.scrollTo(0, 0));
-
-        // 1. Mobile Menu Drawer Toggle
-        const menuBtn = document.getElementById('menu-btn');
-        const menuCloseBtn = document.getElementById('menu-close');
-        const mobileMenu = document.getElementById('mobile-menu');
-        const mobileBackdrop = document.getElementById('mobile-backdrop');
-        const menuIcon = document.getElementById('menu-icon');
-
-        function openMobileMenu() {
-            mobileMenu.classList.remove('translate-x-full');
-            mobileBackdrop.classList.remove('hidden');
-            menuIcon.textContent = 'close';
-            document.body.classList.add('overflow-hidden');
-        }
-
-        function closeMobileMenu() {
-            mobileMenu.classList.add('translate-x-full');
-            mobileBackdrop.classList.add('hidden');
-            menuIcon.textContent = 'menu';
-            document.body.classList.remove('overflow-hidden');
-        }
-
-        menuBtn.addEventListener('click', () => {
-            if (mobileMenu.classList.contains('translate-x-full')) {
-                openMobileMenu();
-            } else {
-                closeMobileMenu();
-            }
-        });
-
-        menuCloseBtn.addEventListener('click', closeMobileMenu);
-        mobileBackdrop.addEventListener('click', closeMobileMenu);
-
-        // Close menu when clicking links on mobile
-        document.querySelectorAll('.mobile-nav-link').forEach(link => {
-            link.addEventListener('click', closeMobileMenu);
-        });
-
-        // 2. Active Link Highlighting with Scroll Spy
-        const sections = document.querySelectorAll('section[id]');
-        const navLinks = document.querySelectorAll('.nav-link');
-        const mobileNavLinks = document.querySelectorAll('.mobile-nav-link');
-        const dotLinks = document.querySelectorAll('#dots-nav a');
-
-        function updateDots(activeId) {
-            dotLinks.forEach(dot => {
-                dot.classList.toggle('active', dot.getAttribute('data-target') === '#' + activeId);
-            });
-        }
-
-        function highlightNav() {
-            const scrollY = window.pageYOffset;
-
-            // Reset semua link (desktop & mobile) ke kondisi tidak-aktif
-            navLinks.forEach(link => {
-                link.classList.remove('text-primary-container', 'font-bold', 'border-b-2', 'border-primary-container');
-                link.classList.add('text-on-surface-variant');
-            });
-            mobileNavLinks.forEach(link => {
-                link.classList.remove('text-primary-container', 'font-bold');
-                link.classList.add('text-on-surface-variant');
-            });
-
-            // Posisi paling atas => Home aktif
-            if (scrollY === 0) {
-                activateNav('home', navLinks);
-                activateNav('home', mobileNavLinks);
-                updateDots('home');
-                return;
-            }
-
-            // Deteksi section yang benar-benar sedang di viewport
-            let activeId = 'home';
-            sections.forEach(current => {
-                const sectionTop = current.offsetTop - 120;
-                const sectionBottom = sectionTop + current.offsetHeight;
-                if (scrollY >= sectionTop && scrollY < sectionBottom) {
-                    activeId = current.getAttribute('id');
-                }
-            });
-
-            activateNav(activeId, navLinks);
-            activateNav(activeId, mobileNavLinks);
-            updateDots(activeId);
-        }
-
-        function activateNav(id, links) {
-            links.forEach(link => {
-                if (link.getAttribute('href') === `#${id}`) {
-                    if (link.classList.contains('mobile-nav-link')) {
-                        link.classList.add('text-primary-container', 'font-bold');
-                        link.classList.remove('text-on-surface-variant');
-                    } else {
-                        link.classList.add('text-primary-container', 'font-bold', 'border-b-2', 'border-primary-container');
-                        link.classList.remove('text-on-surface-variant');
-                    }
-                }
-            });
-        }
-
-        window.addEventListener('scroll', highlightNav);
-        window.addEventListener('load', highlightNav);
-
-        // 2b. Staggered Section Reveal on Scroll
-        const revealEls = document.querySelectorAll('.reveal');
-        const revealObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('in-view');
-                    revealObserver.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-
-        revealEls.forEach(el => revealObserver.observe(el));
-
-        // 2d. 3D Tilt on Project Cards
-        if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-            document.querySelectorAll('.tilt-card').forEach(card => {
-                card.addEventListener('mousemove', (e) => {
-                    const rect = card.getBoundingClientRect();
-                    const px = (e.clientX - rect.left) / rect.width - 0.5;
-                    const py = (e.clientY - rect.top) / rect.height - 0.5;
-                    const rx = py * -10;
-                    const ry = px * 12;
-                    card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateY(-4px)`;
-                });
-                card.addEventListener('mouseleave', () => {
-                    card.style.transform = 'perspective(900px) rotateX(0) rotateY(0)';
-                });
-            });
-        }
-
-        // 2e. Character De-code Effect on Headings
-        const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&@<>/\\';
-        function scrambleText(el) {
-            const finalText = el.dataset.decode || el.textContent;
-            el.dataset.decode = finalText;
-            el.textContent = '';
-            const letters = finalText.split('');
-            letters.forEach((char, i) => {
-                const span = document.createElement('span');
-                span.className = 'decode-char';
-                span.style.animationDelay = (i * 30) + 'ms';
-                let frame = 0;
-                const frames = 12;
-                const id = setInterval(() => {
-                    frame++;
-                    if (char === ' ') {
-                        span.innerHTML = '&nbsp;';
-                        if (frame > 3) { clearInterval(id); span.innerHTML = '&nbsp;'; }
-                    } else {
-                        span.textContent = (frame >= frames) ? char : CHARS[Math.floor(Math.random() * CHARS.length)];
-                        if (frame >= frames) clearInterval(id);
-                    }
-                }, 35);
-                el.appendChild(span);
-            });
-            el.classList.add('decode-title');
-        }
-
-        const decodeObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting && !entry.target.dataset.decoded) {
-                    entry.target.dataset.decoded = '1';
-                    scrambleText(entry.target);
-                    decodeObserver.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.6 });
-
-        document.querySelectorAll('[data-decode]').forEach(el => decodeObserver.observe(el));
-
-        // 3. Contact Email Copy Button
-        function copyEmail() {
-            const email = 'muhammadrizalfadhillah@gmail.com';
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(email).then(() => {
-                    const btn = event.target;
-                    const original = btn.textContent;
-                    btn.textContent = 'COPIED!';
-                    setTimeout(() => { btn.textContent = original; }, 1500);
-                });
-            } else {
-                // Fallback untuk browser lama
-                const ta = document.createElement('textarea');
-                ta.value = email;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                const btn = event.target;
-                const original = btn.textContent;
-                btn.textContent = 'COPIED!';
-                setTimeout(() => { btn.textContent = original; }, 1500);
-            }
-        }
-    </script>
-
-    <!-- 3D scroll experience entry point (ES module) -->
-    <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
