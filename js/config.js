@@ -52,9 +52,44 @@ export const CONFIG = {
   },
 
   scroll: {
-    scrub: 1,
+    scrub: 1, // kept for reference; the path now smooths via damped follow
     ease: 'power1.inOut',
     reducedTransition: 0.6, // seconds, used under prefers-reduced-motion
+  },
+
+  // ---------------- camera motion (scroll-driven, damped) ----------------
+  // The path is one CatmullRomCurve3 for position and a separate one for the
+  // lookAt target, both threaded through every stop. A single 0..1 progress
+  // (from ScrollTrigger) samples both curves; an arc point is auto-inserted
+  // between each pair of stops so the camera swings out and around the desk
+  // instead of sliding straight sideways.
+  motion: {
+    curveType: 'centripetal', // CatmullRom type (tension only applies to 'catmullrom')
+    curveTension: 0.5,        // used when curveType === 'catmullrom'
+
+    // Auto-inserted mid-travel arc, in world units, relative to the segment
+    // midpoint: pulled back along (midpoint - midpointLook) then raised.
+    arcPullBack: 0.55,
+    arcLift: 0.22,
+
+    // Fraction of each stop's scroll range spent holding still at the monitor;
+    // the rest is travel. Typing starts when the camera enters the hold.
+    holdRatio: 0.38,
+
+    // Frame-rate independent exponential damping lambdas (higher = snappier).
+    positionLambda: 5.0,
+    lookAtLambda: 3.2, // lower so the look direction trails the movement
+
+    // FOV widens this many degrees at mid-travel, then returns to the stop fov.
+    fovPullBack: 10,
+    // Subtle roll (degrees) at mid-travel, returning to 0 at each stop.
+    rollAmount: 1.2,
+
+    // Ease to the nearest stop once the user stops scrolling.
+    snapEnabled: true,
+    snapDuration: 0.6,   // seconds for the snap tween
+    snapEpsilon: 0.004,  // skip snap if already this close to a stop
+    settleEpsilon: 0.0004, // distance to target() below which the loop idles
   },
 
   screens: {

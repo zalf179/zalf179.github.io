@@ -25,6 +25,21 @@ const hintEl = document.getElementById('scroll-hint');
 let dirty = true;
 const markDirty = () => { dirty = true; };
 
+const REDUCED = window.matchMedia
+  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  : false;
+
+// Lenis smooth scroll, connected to ScrollTrigger + driven by the gsap ticker.
+// Disabled entirely under prefers-reduced-motion.
+function setupSmoothScroll() {
+  if (REDUCED || !window.Lenis || !window.gsap || !window.ScrollTrigger) return null;
+  const lenis = new window.Lenis({ duration: 1.05, smoothWheel: true, wheelMultiplier: 1, touchMultiplier: 1.5 });
+  lenis.on('scroll', window.ScrollTrigger.update);
+  window.gsap.ticker.add((t) => lenis.raf(t * 1000));
+  window.gsap.ticker.lagSmoothing(0);
+  return lenis;
+}
+
 // ---------------------------------------------------------------- UI helpers
 function setProgress(pct) {
   if (loaderFill) loaderFill.style.width = `${pct}%`;
@@ -90,8 +105,11 @@ function boot() {
   resizeRenderer(renderer, camera);
   renderer.render(scene, camera);
 
-  const app = { renderer, scene, camera, room: null, bounds: null, screens: null, screensUI: null, path: null, markDirty, onFrame: null };
+  const app = { renderer, scene, camera, room: null, bounds: null, screens: null, screensUI: null, path: null, lenis: null, debug: false, pathDebugOn: false, markDirty, onFrame: null };
   let path = null;
+
+  const lenis = setupSmoothScroll();
+  app.lenis = lenis;
 
   const manager = new THREE.LoadingManager();
   manager.onProgress = (_url, loaded, total) => {
@@ -140,9 +158,12 @@ function boot() {
       app.screensUI = screensUI;
       if (CONFIG.stops[0]) screensUI.setActive(CONFIG.stops[0].id);
 
-      // Scrubbed camera path through the four stops.
+      // Scrubbed, spline-based, damped camera path through the four stops.
       path = createCameraPath({
+        scene,
         camera,
+        lenis,
+        reduced: REDUCED,
         onNeedsRender: markDirty,
         onStop: (index, stop) => {
           setDotActive(index);
@@ -150,10 +171,10 @@ function boot() {
         },
       });
       app.path = path;
-      app.onFrame = (now) => {
-        let changed = path.update();
-        if (screensUI.update(now)) changed = true;
-        if (changed) markDirty();
+      app.onFrame = (now, dt) => {
+        let active = path.update(now, dt);
+        if (screensUI.update(now)) active = true;
+        return active;
       };
 
       // Dots: click = smooth scroll to that stop.
@@ -185,9 +206,13 @@ function boot() {
       setDotActive(0);
       markDirty();
 
-      // Debug helpers: ?debug exposes the app, ?stop=N jumps to a waypoint.
+      // Debug helpers: ?debug exposes the app + path overlay, ?stop=N jumps.
       const params = new URLSearchParams(location.search);
-      if (params.has('debug')) window.__zally = app;
+      if (params.has('debug')) {
+        app.debug = true;
+        app.pathDebugOn = true;
+        path.setDebug(true);
+      }
       if (params.has('stop')) {
         const i = Math.max(0, Math.min(CONFIG.stops.length - 1, parseInt(params.get('stop'), 10) || 0));
         window.requestAnimationFrame(() => path.scrollToStop(i));
@@ -205,33 +230,47 @@ function boot() {
   }
 
   // ---------------------------------------------------------- debug controls
+  // D  = toggle path debug (splines, waypoint spheres, progress HUD)
+  // O  = toggle OrbitControls (free-look tuning)
   let orbit = null;
   window.addEventListener('keydown', async (e) => {
-    if (e.key !== 'd' && e.key !== 'D') return;
-    if (!orbit) {
-      const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-      orbit = new OrbitControls(camera, canvas);
-      orbit.enableDamping = true;
-      orbit.addEventListener('change', markDirty);
-      console.log('[debug] OrbitControls enabled — drag to orbit, press D again for renderer.info.');
-    } else {
-      const info = renderer.info;
-      console.log('[debug] camera', camera.position.toArray().map((n) => +n.toFixed(3)));
-      console.log('[debug] lookAt(tracked)', path ? path.rig.target.toArray().map((n) => +n.toFixed(3)) : null);
-      console.log('[debug] fov', camera.fov);
-      console.log('[debug] renderer.info', {
-        triangles: info.render.triangles,
-        calls: info.render.calls,
-        geometries: info.memory.geometries,
-        textures: info.memory.textures,
-        programs: info.programs?.length,
-      });
+    const key = e.key.toLowerCase();
+
+    if (key === 'd') {
+      app.debug = true;
+      app.pathDebugOn = !app.pathDebugOn;
+      if (path) path.setDebug(app.pathDebugOn);
+      console.log(`[debug] path overlay ${app.pathDebugOn ? 'ON' : 'OFF'} · perf logging ON`);
+      markDirty();
+      return;
     }
-    markDirty();
+
+    if (key === 'o') {
+      if (!orbit) {
+        const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+        orbit = new OrbitControls(camera, canvas);
+        orbit.enableDamping = true;
+        orbit.addEventListener('change', markDirty);
+        console.log('[debug] OrbitControls enabled — drag to orbit, press O again to stop.');
+        markDirty();
+      } else {
+        orbit.dispose();
+        orbit = null;
+        console.log('[debug] OrbitControls disabled.');
+        markDirty();
+      }
+    }
   });
 
   // ------------------------------------------------------------ render loop
+  // Stays "active" (rendering every frame) while the damped camera is still
+  // converging, while scrolling, or while a screen is typing; otherwise it
+  // goes idle and only re-renders on demand.
   let last = performance.now();
+  let perfFrames = 0;
+  let perfRenders = 0;
+  let perfLast = performance.now();
+
   function loop() {
     requestAnimationFrame(loop);
     if (document.hidden) { last = performance.now(); return; }
@@ -240,12 +279,23 @@ function boot() {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
-    if (app.onFrame) app.onFrame(now, dt);
-    if (orbit) orbit.update();
+    let active = false;
+    if (app.onFrame) active = app.onFrame(now, dt);
+    if (orbit) { orbit.update(); active = true; }
 
-    if (dirty) {
+    perfFrames++;
+    if (dirty || active) {
       renderer.render(scene, camera);
       dirty = false;
+      perfRenders++;
+    }
+
+    if (app.debug && now - perfLast >= 1000) {
+      const fps = Math.round((perfFrames * 1000) / (now - perfLast));
+      console.log(`[perf] ${fps} fps · ${perfRenders} renders/s · calls ${renderer.info.render.calls} · ${active ? 'active' : 'idle'}`);
+      perfFrames = 0;
+      perfRenders = 0;
+      perfLast = now;
     }
   }
 
