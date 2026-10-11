@@ -1,0 +1,11 @@
+Model Information:
+* title:	Bedroom Corner
+* source:	https://sketchfab.com/3d-models/bedroom-corner-f185208edf234eac98854860c385f44f
+* author:	TheTToonz (https://sketchfab.com/TheTToonz)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Bedroom Corner" (https://sketchfab.com/3d-models/bedroom-corner-f185208edf234eac98854860c385f44f) by TheTToonz (https://sketchfab.com/TheTToonz) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

@@ -32,7 +32,12 @@ function showError(message) {
   }
   // Make the page readable without the 3D scene behind it.
   document.body.classList.add('no-webgl');
-  if (loader) loader.classList.add('done');
+  if (loader) {
+    loader.classList.add('done');
+    window.setTimeout(() => {
+      if (loader.parentNode) loader.parentNode.removeChild(loader);
+    }, 700);
+  }
 }
 
 function webglAvailable() {
