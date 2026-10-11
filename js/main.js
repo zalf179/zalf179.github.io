@@ -102,12 +102,14 @@ function boot() {
   window.addEventListener('resize', () => {
     resizeRenderer(renderer, camera);
     if (path) path.rebuild();
+    if (app.screensUI) app.screensUI.setPortrait(window.innerWidth < CONFIG.mobileWidth);
     markDirty();
   });
   window.addEventListener('orientationchange', () => {
     window.setTimeout(() => {
       resizeRenderer(renderer, camera);
       if (path) path.rebuild();
+      if (app.screensUI) app.screensUI.setPortrait(window.innerWidth < CONFIG.mobileWidth);
       markDirty();
     }, 150);
   });

@@ -89,28 +89,28 @@ export const CONFIG = {
       label: 'Home',
       mesh: 'Monitor_2_Screen_3_0', // centre desk monitor
       desktop: { pos: [-0.370, 0.940, -0.537], look: [-0.162, 0.940, -1.112], fov: 36 },
-      mobile: { pos: [-0.672, 0.960, 0.298], look: [-0.162, 0.940, -1.112], fov: 50 },
+      mobile: { pos: [-0.672, 0.960, 0.298], look: [-0.162, 0.940, -1.112], fov: 42 },
     },
     {
       id: 'skills',
       label: 'Skills',
       mesh: 'Monitor_3_Screen_1_0', // left desk monitor (L-wing)
       desktop: { pos: [-0.594, 0.940, -0.678], look: [-1.150, 0.940, -0.935], fov: 36 },
-      mobile: { pos: [0.216, 0.960, -0.305], look: [-1.150, 0.940, -0.935], fov: 50 },
+      mobile: { pos: [0.216, 0.960, -0.305], look: [-1.150, 0.940, -0.935], fov: 42 },
     },
     {
       id: 'projects',
       label: 'Projects',
       mesh: 'Monitor_1_Screen_2_0', // right desk monitor
       desktop: { pos: [-0.738, 0.940, -0.585], look: [-0.738, 0.940, -1.196], fov: 36 },
-      mobile: { pos: [-0.738, 0.960, 0.304], look: [-0.738, 0.940, -1.196], fov: 50 },
+      mobile: { pos: [-0.738, 0.960, 0.304], look: [-0.738, 0.940, -1.196], fov: 42 },
     },
     {
       id: 'contact',
       label: 'Contact',
       mesh: 'Tv_Tv1_0', // wall-mounted monitor (top right)
       desktop: { pos: [-0.180, 1.314, 0.082], look: [0.419, 1.408, -0.780], fov: 40 },
-      mobile: { pos: [-0.950, 1.192, 1.188], look: [0.419, 1.408, -0.780], fov: 52 },
+      mobile: { pos: [-0.950, 1.192, 1.188], look: [0.419, 1.408, -0.780], fov: 44 },
     },
   ],
 };

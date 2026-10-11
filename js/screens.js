@@ -145,6 +145,99 @@ function contactContent() {
 
 const CONTENT = { home: whoamiContent, skills: skillsContent, projects: projectsContent, contact: contactContent };
 
+// ----------------------------------------------------------------- portrait
+// On a phone the wide 16:9 screen maps to only ~19% of the viewport height, so
+// the desktop text would render ~5px tall. These compact variants use far
+// larger type and fewer lines so the content stays legible in portrait.
+const MH = 74;   // heading
+const MN = 92;   // name
+const MB = 64;   // body
+const MS = 54;   // small
+const MT = 46;   // tiny / footnote
+
+function mHome() {
+  return [
+    { runs: [{ text: PROMPT + ' ', color: C.green, weight: 700 }, { text: 'whoami', color: C.fg }] },
+    { runs: [{ text: 'Muhammad Rizal Fadhillah', color: C.accent, weight: 700, size: MN }] },
+    { gap: 26 },
+    { runs: [{ text: 'DevSecOps Architect & Student', color: C.fg, weight: 500, size: MB }] },
+    { runs: [{ text: 'securing cloud-native infrastructure.', color: C.dim, size: MS }] },
+    { gap: 34 },
+    {
+      runs: [
+        { text: 'GitHub', color: C.link, size: MB, url: 'https://github.com/zalf179' },
+        { text: '  ', color: C.fg },
+        { text: 'LinkedIn', color: C.link, size: MB, url: 'https://www.linkedin.com/in/rizalfadh/' },
+        { text: '  ', color: C.fg },
+        { text: 'Medium', color: C.link, size: MB, url: 'https://medium.com/@zalfd' },
+      ],
+    },
+    { runs: [{ text: 'Resume.pdf', color: C.link, size: MB, url: 'Resume.pdf' }] },
+    { gap: 26 },
+    { runs: [{ text: '// scroll to explore the room', color: C.comment, size: MT }] },
+  ];
+}
+
+function mSkills() {
+  const h = (t) => ({ gap: 20, runs: [{ text: '> ' + t, color: C.green, weight: 700, size: MH }] });
+  const b = (t, color = C.fg) => ({ indent: 40, runs: [{ text: t, color, size: MB }] });
+  return [
+    { runs: [{ text: '# technical stack', color: C.comment, size: MS }] },
+    h('SECURITY'),
+    b('DAST/SAST  Pentesting'),
+    b('SIEM / SOC monitoring', C.dim),
+    h('CLOUD'),
+    b('AWS (learning)', C.warn),
+    h('DEVOPS'),
+    b('Docker  K8s  Terraform'),
+    b('Ansible  GitHub Actions', C.dim),
+    b('DevSecOps inside CI/CD', C.dim),
+  ];
+}
+
+function mProjects() {
+  const p = (n, title, url) => ({
+    gap: 20,
+    runs: [
+      { text: `[${n}] `, color: C.green, weight: 700, size: MB },
+      { text: title, color: C.link, size: MB, url },
+    ],
+  });
+  return [
+    { runs: [{ text: '# projects', color: C.comment, size: MS }] },
+    p(1, 'Python CI/CD pipeline', 'https://medium.com/@zalfd/building-a-python-ci-cd-pipeline-errors-false-positives-and-lessons-learned-f75743c833bb'),
+    p(2, 'ELK logging + Docker', 'https://medium.com/@zalfd/building-a-centralized-logging-system-with-elk-stack-docker-on-minimal-hardware-72ee2b960ccb'),
+    p(3, 'Wazuh SSH active response', 'https://medium.com/@zalfd/blocking-ssh-brute-force-with-active-response-in-wazuh-a8aadac34251'),
+    p(4, 'SOC home lab (GitHub)', 'https://github.com/zalf179/SOC_Home_Lab'),
+    p(5, 'DevSecOps + ArgoCD', 'https://medium.com/@zalfd/building-an-enterprise-grade-devsecops-gitops-pipeline-from-code-to-monitoring-with-argocd-78204a02bf25'),
+  ];
+}
+
+function mContact() {
+  const row = (label, value, url) => ({
+    size: MB,
+    runs: [
+      { text: '[+] ', color: C.green, weight: 700 },
+      { text: label.padEnd(10, ' '), color: C.fg, weight: 500 },
+      { text: value, color: C.link, url },
+    ],
+  });
+  return [
+    { runs: [{ text: PROMPT + ' ', color: C.green, weight: 700 }, { text: './get_contact_info.sh', color: C.fg }] },
+    { gap: 30 },
+    row('GitHub', 'github.com/zalf179', 'https://github.com/zalf179'),
+    row('LinkedIn', 'in/rizalfadh', 'https://www.linkedin.com/in/rizalfadh/'),
+    row('Medium', '@zalfd', 'https://medium.com/@zalfd'),
+    row('Resume', 'Resume.pdf', 'Resume.pdf'),
+    row('Email', 'email me', 'mailto:muhammadrizalfadhillah@gmail.com'),
+    { gap: 34 },
+    { runs: [{ text: 'Ready to secure your velocity?', color: C.accent, weight: 700, size: MH }] },
+    { runs: [{ text: '[STATUS] ready for encrypted comms.', color: C.green, size: MS }] },
+  ];
+}
+
+const CONTENT_MOBILE = { home: mHome, skills: mSkills, projects: mProjects, contact: mContact };
+
 // ----------------------------------------------------------------- drawing
 const PAD_X = 84;
 const PAD_Y = 150;
@@ -233,6 +326,9 @@ export function createScreens({ renderer, stops, screens, onNeedsRender }) {
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const items = [];
   let activeId = null;
+  let portrait = typeof globalThis.innerWidth === 'number' ? globalThis.innerWidth < CONFIG.mobileWidth : false;
+
+  const pickLines = (id) => ((portrait && CONTENT_MOBILE[id]) || CONTENT[id])();
 
   for (const stop of stops) {
     const mesh = screens.byName.get(stop.mesh);
@@ -257,7 +353,7 @@ export function createScreens({ renderer, stops, screens, onNeedsRender }) {
 
     const item = {
       stop, mesh, title: TITLES[stop.id] || stop.id,
-      lines: CONTENT[stop.id](),
+      lines: pickLines(stop.id),
       canvas, ctx, texture, material,
       hitRects: [], reveal: Infinity, chars: 0,
       typing: false, tStart: null, blinkOn: true, dirty: true,
@@ -364,5 +460,19 @@ export function createScreens({ renderer, stops, screens, onNeedsRender }) {
     }
   }
 
-  return { items, drawAll, setActive, update, redraw, pick, dispose, find };
+  // Swap desktop <-> compact content when crossing the breakpoint.
+  function setPortrait(next) {
+    if (next === portrait) return;
+    portrait = next;
+    for (const it of items) {
+      it.lines = pickLines(it.stop.id);
+      it.chars = totalChars(it.lines);
+      it.reveal = Infinity;
+      it.typing = false;
+      it.dirty = true;
+    }
+    drawAll();
+  }
+
+  return { items, drawAll, setActive, update, redraw, pick, dispose, find, setPortrait, isPortrait: () => portrait };
 }
