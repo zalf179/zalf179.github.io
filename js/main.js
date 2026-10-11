@@ -11,6 +11,7 @@ import {
   resizeRenderer,
   setMaxAnisotropy,
 } from './scene.js';
+import { createScreens } from './screens.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -94,8 +95,20 @@ function boot() {
     window.setTimeout(() => { resizeRenderer(renderer, camera); markDirty(); }, 150);
   });
 
+  // Applies a stop's camera pose (used by the debug ?stop=N helper for now;
+  // the scrubbed timeline in js/camera-path.js takes over in stage 3).
+  function applyStop(index, portrait) {
+    const stop = CONFIG.stops[index] || CONFIG.stops[0];
+    const w = portrait ? stop.mobile : stop.desktop;
+    camera.position.set(...w.pos);
+    camera.lookAt(...w.look);
+    camera.fov = w.fov;
+    camera.updateProjectionMatrix();
+    markDirty();
+  }
+
   loadRoom(manager)
-    .then((gltf) => {
+    .then(async (gltf) => {
       const room = gltf.scene || gltf.scenes[0];
       scene.add(room);
 
@@ -107,15 +120,29 @@ function boot() {
       app.room = room;
       app.bounds = bounds;
       app.screens = screens;
+      app.applyStop = applyStop;
+      app.stops = CONFIG.stops;
+
+      // Wait for the monospace font so the canvas text is crisp on first draw.
+      try { await document.fonts.ready; } catch { /* draw anyway */ }
+
+      const screensUI = createScreens({
+        renderer,
+        stops: CONFIG.stops,
+        screens,
+        onNeedsRender: markDirty,
+      });
+      screensUI.drawAll();
+      app.screensUI = screensUI;
 
       setProgress(100);
       fadeLoader();
       markDirty();
 
-      // Optional debug surface: ?debug in the URL, or press D for OrbitControls.
-      if (new URLSearchParams(location.search).has('debug')) {
-        window.__zally = app;
-      }
+      // Debug helpers: ?debug exposes the app, ?stop=N jumps to a waypoint.
+      const params = new URLSearchParams(location.search);
+      if (params.has('debug')) window.__zally = app;
+      if (params.has('stop')) applyStop(parseInt(params.get('stop'), 10) || 0, window.innerWidth < CONFIG.mobileWidth);
     })
     .catch((err) => {
       console.error('Scene load failed:', err);
