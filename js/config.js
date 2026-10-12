@@ -103,6 +103,20 @@ export const CONFIG = {
     flicker: 0.025,
   },
 
+  coffee: {
+    enabled: true,
+    cupMesh: 'Cup_Cup_0',
+    // Cup_Cup_0's local origin is slightly offset from its opening.
+    openingCenter: [0, 0, -0.29],
+    color: 0x392014,
+    surfaceInset: 0.006,
+    surfaceRadius: 0.026,
+    steamColor: 0xfff0dc,
+    steamOpacity: 0.18,
+    steamHeight: 0.16,
+    steamSpeed: 0.48,
+  },
+
   // Display quad in WORLD space. The 4 corners are the SOURCE OF TRUTH:
   // Monitor_Monitor_0 is a single mesh (frame+stand+display), and these were
   // extracted from its flat, front-facing 2-triangle panel. The right/up/

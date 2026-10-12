@@ -54,6 +54,137 @@ function webglAvailable() {
   } catch { return false; }
 }
 
+function createCoffeeEffect(scene, cup, camera) {
+  const cfg = CONFIG.coffee;
+  if (!cfg?.enabled || !cup) return null;
+
+  cup.updateWorldMatrix(true, false);
+  cup.geometry.computeBoundingBox();
+  const rimLocal = new THREE.Vector3(
+    cfg.openingCenter[0],
+    cup.geometry.boundingBox.max.y,
+    cfg.openingCenter[2],
+  );
+  const rim = cup.localToWorld(rimLocal.clone());
+  const surfaceY = rim.y - cfg.surfaceInset;
+
+  const coffee = new THREE.Mesh(
+    new THREE.CircleGeometry(cfg.surfaceRadius, 48),
+    new THREE.MeshStandardMaterial({ color: cfg.color, roughness: 0.24, metalness: 0.02 }),
+  );
+  coffee.name = 'coffee-surface';
+  coffee.rotation.x = -Math.PI / 2;
+  coffee.position.set(rim.x, surfaceY, rim.z);
+  coffee.castShadow = false;
+  coffee.receiveShadow = false;
+  scene.add(coffee);
+
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+  const fragmentShader = `
+    uniform float uTime;
+    uniform float uSeed;
+    uniform float uOpacity;
+    uniform vec3 uColor;
+    varying vec2 vUv;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+    }
+    float fbm(vec2 p) {
+      float n = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 4; i++) {
+        n += a * noise(p);
+        p = p * 2.03 + vec2(17.1, 9.2);
+        a *= 0.5;
+      }
+      return n;
+    }
+    void main() {
+      vec2 p = vUv;
+      float t = uTime * 0.24;
+      vec2 warp = vec2(
+        fbm(p * vec2(3.0, 5.0) + vec2(t, uSeed)),
+        fbm(p * vec2(3.0, 5.0) + vec2(6.7, -t * 0.8 + uSeed))
+      );
+      float n = fbm(p * vec2(5.0, 8.0) + warp * 2.4 + vec2(-t * 0.7, uSeed));
+      float drift = (n - 0.48) * 0.19 + sin(p.y * 8.0 + uTime * 0.72 + uSeed) * 0.055;
+      float center = 0.5 + drift * smoothstep(0.0, 0.8, p.y);
+      float width = mix(0.075, 0.34, p.y);
+      float across = abs(p.x - center) / width;
+      float softShape = exp(-across * across * 2.4);
+      float billows = smoothstep(0.16, 0.73, n + (1.0 - across) * 0.17);
+      float verticalFade = smoothstep(0.0, 0.15, p.y) * (1.0 - smoothstep(0.78, 1.0, p.y));
+      float alpha = softShape * billows * verticalFade * uOpacity;
+      if (alpha < 0.004) discard;
+      gl_FragColor = vec4(uColor, alpha);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }
+  `;
+  const wisps = [];
+  for (let i = 0; i < 3; i++) {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uSeed: { value: i * 4.17 },
+        uOpacity: { value: 0 },
+        uColor: { value: new THREE.Color(cfg.steamColor) },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const wisp = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    wisp.name = `coffee-steam-${i + 1}`;
+    wisp.scale.set(0.075, cfg.steamHeight, 1);
+    wisp.renderOrder = 1;
+    scene.add(wisp);
+    wisps.push({ sprite: wisp, phase: i / 3, offset: (i - 1) * 0.009 });
+  }
+
+  let lastUpdate = -Infinity;
+  return {
+    update(now) {
+      if (now - lastUpdate < 32) return false;
+      lastUpdate = now;
+      const seconds = now / 1000;
+      for (const { sprite, phase: phaseOffset, offset } of wisps) {
+        const phase = (seconds * cfg.steamSpeed + phaseOffset) % 1;
+        const drift = phase * phase;
+        sprite.position.set(
+          rim.x + offset + Math.sin(seconds * 1.1 + phaseOffset * 8) * 0.009 * (1 + drift),
+          surfaceY + 0.008 + phase * cfg.steamHeight * 0.7,
+          rim.z + Math.cos(seconds * 0.9 + phaseOffset * 7) * 0.007 * (1 + drift),
+        );
+        sprite.quaternion.copy(camera.quaternion);
+        sprite.material.uniforms.uTime.value = seconds + phaseOffset * 2.0;
+        sprite.material.uniforms.uOpacity.value = Math.sin(Math.PI * phase) * cfg.steamOpacity;
+      }
+      return true;
+    },
+  };
+}
+
 // ------------------------------------------------------------------- boot
 async function boot() {
   if (!canvas) return;
@@ -135,6 +266,7 @@ async function boot() {
     app.model = model;
     app.bounds = bounds;
     app.meshes = findMeshes(model);
+    app.coffee = createCoffeeEffect(scene, app.meshes.get(CONFIG.coffee.cupMesh), camera);
     app.lights = lights;
     lights.lamp.setOn(1);
 
@@ -258,6 +390,8 @@ async function boot() {
     if (app.interaction) { if (app.interaction.update(now)) dirty = true; }
 
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
+
+    if (app.coffee?.update(now)) dirty = true;
 
     if (dirty) {
       renderer.render(scene, camera);
