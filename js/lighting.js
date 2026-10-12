@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SpotLightHelper } from 'three/addons/helpers/SpotLightHelper.js';
 import { CONFIG } from './config.js';
 
 // ---------------------------------------------------------------------------
@@ -55,6 +56,11 @@ export function setupLights(scene, bounds) {
 
   // Warm desk lamp.
   const lamp = createLamp(scene);
+  const previousBeforeRender = scene.onBeforeRender;
+  scene.onBeforeRender = function (...args) {
+    if (previousBeforeRender) previousBeforeRender.apply(this, args);
+    lamp.update(performance.now() / 1000);
+  };
 
   // Baked contact shadows.
   const contact = createContactShadows(scene, bounds);
@@ -62,37 +68,83 @@ export function setupLights(scene, bounds) {
   return { hemi, key, grounding, fill, rim, screenSpill, lamp, contact, centre };
 }
 
-// ---------------------------------------------------------------------------
-// Desk lamp: warm spot + a soft additive glow sprite at the head. Returned so
-// the idle loop can flicker it and the scroll story can fade it on/off.
-// ---------------------------------------------------------------------------
+// Derive the shade opening from the upper lamp-head vertices in world space.
+function findLampOpening(scene) {
+  const mesh = scene.getObjectByName('DeskLamp_DeskLamp_0');
+  const positions = mesh && mesh.geometry && mesh.geometry.attributes.position;
+  if (!positions) return null;
+
+  mesh.updateWorldMatrix(true, false);
+  const points = [];
+  const point = new THREE.Vector3();
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i).applyMatrix4(mesh.matrixWorld);
+    if (point.y > 1.28) points.push(point.clone());
+  }
+  if (points.length < 3) return null;
+
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of points) { minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+  const span = maxY - minY;
+  if (span < 0.01) return null;
+
+  const openingBand = minY + Math.max(0.008, span * 0.1);
+  const upperBand = minY + span * 0.55;
+  const opening = new THREE.Vector3();
+  const upper = new THREE.Vector3();
+  let openingCount = 0;
+  let upperCount = 0;
+  for (const p of points) {
+    if (p.y <= openingBand) { opening.add(p); openingCount++; }
+    if (p.y >= upperBand) { upper.add(p); upperCount++; }
+  }
+  if (!openingCount || !upperCount) return null;
+  opening.multiplyScalar(1 / openingCount);
+  upper.multiplyScalar(1 / upperCount);
+  const center = opening.clone();
+  const axis = opening.sub(upper);
+  if (axis.lengthSq() < 1e-6) return null;
+  if (axis.y > 0) axis.negate();
+  axis.normalize();
+  return { center, axis };
+}
+
+// Desk lamp: a geometry-aligned shadow spotlight and a tiny, depth-tested
+// glow at the shade opening. `setOn` remains the eased master level.
 export function createLamp(scene) {
   const P = CONFIG.lamp;
+  const detected = findLampOpening(scene);
+  const fallbackEmitter = new THREE.Vector3(...P.fallbackEmitter);
+  const fallbackAim = new THREE.Vector3(...P.fallbackAim);
+  const emitter = (detected ? detected.center : fallbackEmitter).add(new THREE.Vector3(...P.emitter));
+  const axis = detected
+    ? detected.axis
+    : fallbackAim.sub(fallbackEmitter).normalize();
+  const aim = emitter.clone()
+    .addScaledVector(axis, P.distance * 0.72)
+    .add(new THREE.Vector3(...P.aim));
 
   const group = new THREE.Group();
   group.name = 'lamp-rig';
-  group.position.set(...P.light);
   scene.add(group);
 
-  const spot = new THREE.SpotLight(P.color, 0, P.distance, 0.72, 0.55, P.decay);
+  const spot = new THREE.SpotLight(P.color, 0, P.distance, P.angle, P.penumbra, P.decay);
   spot.name = 'lamp-spot';
+  spot.castShadow = CONFIG.shadows.enabled;
+  spot.position.copy(emitter);
+  spot.target.position.copy(aim);
+  group.add(spot, spot.target);
   if (CONFIG.shadows.enabled) {
-    spot.castShadow = true;
     spot.shadow.mapSize.set(CONFIG.shadows.mapSize, CONFIG.shadows.mapSize);
     spot.shadow.bias = CONFIG.shadows.bias;
     spot.shadow.normalBias = CONFIG.shadows.normalBias;
     spot.shadow.radius = CONFIG.shadows.radius;
-    spot.shadow.camera.near = 0.05;
+    spot.shadow.camera.near = 0.03;
     spot.shadow.camera.far = P.distance;
+    spot.shadow.camera.fov = THREE.MathUtils.radToDeg(P.angle * 2);
     spot.shadow.camera.updateProjectionMatrix();
   }
-  spot.position.set(0, 0, 0);
-  spot.target.position.set(P.target[0] - P.light[0], P.target[1] - P.light[1], P.target[2] - P.light[2]);
-  group.add(spot, spot.target);
-
-  // Small point light fills the shade interior so the head reads as "on".
-  const bulb = new THREE.PointLight(0xffe0b0, 0, 0.9, 2);
-  group.add(bulb);
 
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: makeGlowTexture(),
@@ -100,31 +152,51 @@ export function createLamp(scene) {
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    depthTest: true,
     opacity: 0,
   }));
-  glow.name = 'lamp-glow';
+  glow.name = 'lamp-opening-glow';
   glow.scale.setScalar(P.glowSize);
-  glow.position.set(0, -0.02, 0);
-  group.add(glow);
+  glow.position.copy(emitter).addScaledVector(axis, 0.008);
+  scene.add(glow);
 
-  const target = { spot: P.intensity, bulb: P.intensity * 0.32, glow: 0.55 };
+  const target = { spot: P.intensity, glow: P.glowOpacity };
+  let level = 0;
+  let flickerScale = 1;
+  const applyIntensity = () => {
+    const k = level * flickerScale;
+    spot.intensity = target.spot * k;
+    glow.material.opacity = Math.max(0, Math.min(1, target.glow * k));
+  };
+
+  let spotHelper = null;
+  let axisHelper = null;
+  if (new URLSearchParams(location.search).has('debug')) {
+    spotHelper = new SpotLightHelper(spot, P.glowColor);
+    axisHelper = new THREE.ArrowHelper(axis.clone(), emitter.clone(), 0.45, P.glowColor);
+    scene.add(spotHelper, axisHelper);
+    spotHelper.update();
+    console.log(
+      `[lamp] opening ${emitter.toArray().map((v) => v.toFixed(3)).join(', ')}` +
+      ` · axis ${axis.toArray().map((v) => v.toFixed(3)).join(', ')}` +
+      (detected ? '' : ' · using configured fallback'),
+    );
+  }
 
   return {
-    group, spot, bulb, glow,
+    group, spot, glow, emitter, axis, aim, spotHelper, axisHelper,
     // on: 0..1 master intensity multiplier (used by the scroll story).
     setOn(v) {
-      const k = Math.max(0, Math.min(1, v));
-      spot.intensity = target.spot * k;
-      bulb.intensity = target.bulb * k;
-      glow.material.opacity = target.glow * k;
+      level = Math.max(0, Math.min(1, v));
+      applyIntensity();
     },
     update(t) {
-      // Faint flicker around the current "on" level.
+      // Faint flicker is shared by the pool and the visible bulb glow.
       const f = P.flicker;
       const n = Math.sin(t * 11.0) * 0.5 + Math.sin(t * 23.7 + 1.3) * 0.5;
-      const scale = 1 + n * f;
-      spot.intensity = target.spot * scale;
-      bulb.intensity = target.bulb * scale;
+      flickerScale = 1 + n * f;
+      applyIntensity();
+      if (spotHelper) spotHelper.update();
     },
   };
 }

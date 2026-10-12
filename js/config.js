@@ -80,20 +80,23 @@ export const CONFIG = {
     screenSpill: { color: 0x63d0ff, intensity: 0.7, distance: 1.6 },
   },
 
-  // Warm desk lamp. head is the lamp head centre; light is the emitter point
-  // (just under the head) and target is where the cone lands.
+  // Warm desk lamp. The emitter and aim values are world-space nudges from the
+  // geometry-derived shade opening and its axis (use ?debug to tune them).
   lamp: {
-    head: [0.011, 1.333, -0.041],
-    light: [0.011, 1.3, -0.041],
-    target: [0.16, 0.974, 0.02],
-    color: 0xffcf8f,
-    intensity: 4.0,
-    distance: 3.2,
+    emitter: [0, 0, 0],
+    aim: [0, 0, 0],
+    fallbackEmitter: [0.011, 1.3, -0.041],
+    fallbackAim: [0.16, 0.974, 0.02],
+    color: 0xffd9a0,
+    intensity: 3.2,
+    distance: 3.4,
+    angle: 0.55,
+    penumbra: 0.6,
     decay: 2.0,
-    // Ghostly glow sprite at the head + optional alpha-cutout bulb.
-    glowSize: 0.34,
+    glowSize: 0.06,
+    glowOpacity: 0.14,
     glowColor: 0xffd9a0,
-    flicker: 0.05,        // fraction of intensity that wobbles
+    flicker: 0.025,
   },
 
   // Display quad in WORLD space — hardcoded from the mesh (source of truth).
