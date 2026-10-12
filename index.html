@@ -20,13 +20,22 @@
     }
   </script>
 
-  <!-- GSAP (pinned) — used only for the camera fly-to tween. -->
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js">
+  <link rel="modulepreload" href="js/main.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/meshopt_decoder.module.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/renderers/CSS3DRenderer.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/environments/RoomEnvironment.js">
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/helpers/SpotLightHelper.js">
+  <link rel="preload" href="computer_desk-opt.glb" as="fetch" crossorigin>
 
   <!-- Monospace font for the on-screen terminal -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
 
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -46,12 +55,13 @@
     <strong>[ERROR]</strong> <span data-message></span>
   </div>
 
-  <!-- Minimal loading indicator, driven by THREE.LoadingManager progress. -->
+  <!-- Minimal loading indicator, driven by model download progress. -->
   <div id="loader" role="status" aria-live="polite">
     <div class="loader-inner">
       <div class="loader-logo">&gt;_</div>
       <div class="loader-bar"><span id="loader-fill"></span></div>
       <div class="loader-label" id="loader-label">LOADING 0%</div>
+      <button id="loader-retry" type="button" hidden>RETRY</button>
     </div>
   </div>
 
@@ -60,6 +70,32 @@
 
   <!-- Fallback exit, only visible while zoomed into the screen. -->
   <button id="back-btn" type="button" hidden>&larr; BACK</button>
+
+  <script>
+    window.__portfolioLoadStartedAt = performance.now();
+    const loader = document.getElementById('loader');
+    const loaderLabel = document.getElementById('loader-label');
+    const loaderFill = document.getElementById('loader-fill');
+    const retryButton = document.getElementById('loader-retry');
+    window.__showPortfolioLoadError = (message) => {
+      loaderLabel.textContent = message;
+      loaderFill.classList.remove('indeterminate');
+      loaderFill.style.width = '100%';
+      retryButton.hidden = false;
+    };
+    retryButton.addEventListener('click', () => location.reload());
+    const loadTimeout = setTimeout(() => {
+      window.__showPortfolioLoadError('Loading is taking longer than expected. Check your connection and retry.');
+    }, 20000);
+    import('./js/main.js')
+      .then((app) => app.start())
+      .then(() => clearTimeout(loadTimeout))
+      .catch((error) => {
+        console.error('Portfolio module load failed:', error);
+        clearTimeout(loadTimeout);
+        window.__showPortfolioLoadError('The portfolio could not load. Check your connection and retry.');
+      });
+  </script>
 
   <!-- Accessibility / SEO layer: real text + links, clipped off-screen (not
        display:none). It mirrors the monitor content for crawlers and also

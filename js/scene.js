@@ -70,7 +70,7 @@ export function getMaxAnisotropy() { return _maxAniso; }
 
 // Loads computer_desk-opt.glb (meshopt-compressed + webp + quantized) and
 // fixes colour space / anisotropy / filtering on every texture.
-export function loadModel(manager) {
+export function loadModel(manager, onProgress) {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader(manager);
     loader.setMeshoptDecoder(MeshoptDecoder); // REQUIRED for this file
@@ -80,7 +80,7 @@ export function loadModel(manager) {
         const report = processTextures(gltf.scene);
         resolve({ gltf, report });
       },
-      undefined,
+      onProgress,
       reject,
     );
   });

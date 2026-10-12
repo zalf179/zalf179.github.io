@@ -23,8 +23,15 @@ export const REDUCED = window.matchMedia
 
 // ------------------------------------------------------------------- UI
 function setProgress(pct) {
+  if (loaderFill) loaderFill.classList.remove('indeterminate');
   if (loaderFill) loaderFill.style.width = `${pct}%`;
   if (loaderLabel) loaderLabel.textContent = `LOADING ${Math.round(pct)}%`;
+}
+function setIndeterminateProgress() {
+  if (loaderFill) {
+    loaderFill.classList.add('indeterminate');
+    loaderFill.style.width = '30%';
+  }
 }
 function fadeLoader() {
   if (!loaderEl) return;
@@ -48,7 +55,7 @@ function webglAvailable() {
 }
 
 // ------------------------------------------------------------------- boot
-function boot() {
+async function boot() {
   if (!canvas) return;
 
   if (!webglAvailable()) {
@@ -102,69 +109,92 @@ function boot() {
   });
 
   const manager = new THREE.LoadingManager();
-  manager.onProgress = (_url, loaded, total) => { if (total > 0) setProgress((loaded / total) * 100); };
   manager.onError = (url) => console.error('Asset load error:', url);
 
   setupEnvironment(scene, renderer);
 
-  loadModel(manager)
-    .then(({ gltf, report }) => {
-      const model = gltf.scene || gltf.scenes[0];
-      scene.add(model);
-      model.traverse((object) => {
-        if (!object.isMesh) return;
-        object.castShadow = CONFIG.shadows.enabled;
-        object.receiveShadow = CONFIG.shadows.enabled;
-      });
+  try {
+    const { gltf, report } = await loadModel(manager, (event) => {
+      if (event.total > 0) {
+        window.__portfolioModelBytes = event.total;
+        setProgress(Math.min(90, (event.loaded / event.total) * 90));
+      } else setIndeterminateProgress();
+    });
+    setProgress(90);
+    const model = gltf.scene || gltf.scenes[0];
+    scene.add(model);
+    model.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = CONFIG.shadows.enabled;
+      object.receiveShadow = CONFIG.shadows.enabled;
+    });
 
-      const bounds = measureBounds(model);
-      const lights = setupLights(scene, bounds);
+    const bounds = measureBounds(model);
+    const lights = setupLights(scene, bounds);
 
-      app.model = model;
-      app.bounds = bounds;
-      app.meshes = findMeshes(model);
-      app.lights = lights;
-      lights.lamp.setOn(1);
+    app.model = model;
+    app.bounds = bounds;
+    app.meshes = findMeshes(model);
+    app.lights = lights;
+    lights.lamp.setOn(1);
 
       // CSS3D monitor screen (real HTML on the display quad).
-      const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
-      app.screen = screen;
-      if (screen.hole) {
-        screen.hole.castShadow = false;
-        screen.hole.receiveShadow = false;
-      }
-      screen.setActive('home');
-      screen.setVisible(true);
-      screen.setInteractive(false);
+    const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
+    app.screen = screen;
+    if (screen.hole) {
+      screen.hole.castShadow = false;
+      screen.hole.receiveShadow = false;
+    }
+    screen.setActive('home');
+    screen.setVisible(true);
+    screen.setInteractive(false);
 
       // Free-look orbit controls.
-      app.controls = createControls({
-        camera, domElement: canvas, reduced: REDUCED,
-        onChange: () => { dirty = true; },
-      });
+    app.controls = createControls({
+      camera, domElement: canvas, reduced: REDUCED,
+      onChange: () => { dirty = true; },
+    });
 
       // Hover / click the computer -> fly to the screen; interactive screen.
-      app.interaction = createInteraction({
-        canvas, camera, scene, screen, controls: app.controls, lights, meshes: app.meshes,
-        reduced: REDUCED, onNeedsRender: () => { dirty = true; },
-      });
-
-      console.log(
-        `[scene] loaded · ${report.textures} textures` +
-        (report.lowRes.length ? ` · low-res: ${report.lowRes.map(t => `${t.mesh}/${t.name} ${t.w}x${t.h}`).join(', ')}` : ''),
-      );
-
-      setProgress(100);
-      fadeLoader();
-      dirty = true;
-
-      const params = new URLSearchParams(location.search);
-      if (params.has('debug')) enableDebugInfo();
-    })
-    .catch((err) => {
-      console.error('Scene load failed:', err);
-      showError('The 3D scene could not be loaded. The full portfolio is shown as plain text instead.');
+    app.interaction = createInteraction({
+      canvas, camera, scene, screen, controls: app.controls, lights, meshes: app.meshes,
+      reduced: REDUCED, onNeedsRender: () => { dirty = true; },
     });
+
+    console.log(
+      `[scene] loaded · ${report.textures} textures` +
+      (report.lowRes.length ? ` · low-res: ${report.lowRes.map(t => `${t.mesh}/${t.name} ${t.w}x${t.h}`).join(', ')}` : ''),
+    );
+
+    const params = new URLSearchParams(location.search);
+    if (params.has('debug')) enableDebugInfo();
+
+    let compileProgress = 90;
+    const compileTicker = window.setInterval(() => {
+      compileProgress = Math.min(99, compileProgress + 0.35);
+      setProgress(compileProgress);
+    }, 80);
+    try {
+      if (renderer.compileAsync) await renderer.compileAsync(scene, camera);
+      else renderer.compile(scene, camera);
+    } catch (compileError) {
+      console.warn('Async shader compilation failed; using synchronous compilation:', compileError);
+      renderer.compile(scene, camera);
+    } finally {
+      window.clearInterval(compileTicker);
+    }
+    reportLoadMetrics(params.has('debug'));
+    setProgress(100);
+    fadeLoader();
+    dirty = true;
+  } catch (err) {
+    console.error('Scene load failed:', err);
+    if (window.__showPortfolioLoadError) {
+      window.__showPortfolioLoadError('The 3D scene could not be loaded. Check your connection and try again.');
+    } else {
+      showError('The 3D scene could not be loaded. The full portfolio is shown as plain text instead.');
+    }
+  }
 
   // Fade the hint out after the first interaction.
   if (hintEl) {
@@ -250,8 +280,38 @@ function boot() {
   loop();
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', boot, { once: true });
-} else {
-  boot();
+function reportLoadMetrics(debug) {
+  if (!debug) return;
+  const allEntries = performance.getEntriesByType('resource');
+  const unavailableSizes = allEntries.filter((entry) => entry.transferSize === 0 && entry.decodedBodySize === 0).length;
+  const entries = allEntries
+    .filter((entry) => entry.transferSize > 0)
+    .sort((a, b) => b.transferSize - a.transferSize);
+  const modelEntry = entries.find((entry) => new URL(entry.name).pathname.endsWith('/computer_desk-opt.glb'));
+  const resourceBytes = entries.reduce((sum, entry) => sum + entry.transferSize, 0);
+  const totalBytes = resourceBytes + (!modelEntry ? (window.__portfolioModelBytes || 0) : 0);
+  const elapsedMs = performance.now() - window.__portfolioLoadStartedAt;
+  const largest = entries.slice(0, 8).map((entry) =>
+    `${new URL(entry.name).pathname.split('/').pop() || entry.name}: ${(entry.transferSize / 1024).toFixed(1)} KiB`,
+  );
+  if (!modelEntry && window.__portfolioModelBytes) {
+    largest.push(`computer_desk-opt.glb: ${(window.__portfolioModelBytes / 1024).toFixed(1)} KiB (download size)`);
+  }
+  console.log(
+    `[load] ${(totalBytes / 1024).toFixed(1)} KiB observed transfer · ${(elapsedMs / 1000).toFixed(2)} s` +
+    (unavailableSizes ? ` · ${unavailableSizes} request size(s) hidden by cache or cross-origin timing policy` : '') +
+    (entries.length ? `\n[load] largest requests: ${largest.join(' · ')}` : '\n[load] request transfer sizes unavailable'),
+  );
+}
+
+export function start() {
+  return new Promise((resolve) => {
+    const run = () => boot().then(resolve, (error) => {
+      console.error('Startup failed:', error);
+      if (window.__showPortfolioLoadError) window.__showPortfolioLoadError('Startup failed. Check your connection and try again.');
+      resolve();
+    });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once: true });
+    else run();
+  });
 }
