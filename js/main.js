@@ -7,6 +7,7 @@ import {
 } from './scene.js';
 import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
+import { createControls } from './controls.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -68,10 +69,9 @@ function boot() {
   const scene = createScene();
   const camera = createCamera(window.innerWidth / Math.max(window.innerHeight, 1));
 
-  // Seed the camera with the stage-1 establishing shot; createCameraPath
-  // re-seats it exactly on the first stop as soon as the model is ready.
-  camera.position.set(2.2, 1.55, 1.35);
-  camera.lookAt(0.0, 0.72, 0.05);
+  // Free-look framing: a 3/4 view from the front-right of the desk.
+  camera.position.set(...CONFIG.orbit.start.position);
+  camera.lookAt(new THREE.Vector3(...CONFIG.orbit.target));
 
   resizeRenderer(renderer, camera);
   renderer.render(scene, camera);
@@ -127,6 +127,12 @@ function boot() {
       screen.setVisible(true);
       screen.setInteractive(false);
 
+      // Free-look orbit controls.
+      app.controls = createControls({
+        camera, domElement: canvas, reduced: REDUCED,
+        onChange: () => { dirty = true; },
+      });
+
       console.log(
         `[scene] loaded · ${report.textures} textures` +
         (report.lowRes.length ? ` · low-res: ${report.lowRes.map(t => `${t.mesh}/${t.name} ${t.w}x${t.h}`).join(', ')}` : ''),
@@ -156,30 +162,21 @@ function boot() {
   }
 
   // ------------------------------------------------------------ debug
-  // D = toggle OrbitControls (free-look tuning) + perf logging.
-  // V = verify the hardcoded screen quad against the mesh geometry.
-  let orbit = null;
+  // D = toggle unlimited free orbit (tuning). V = verify the screen quad.
+  let freeOrbit = false;
   let infoOn = false;
   function enableDebugInfo() {
     infoOn = true;
     app.debug = true;
-    console.log('[debug] info logging ON — press D for OrbitControls, V to verify screen quad.');
+    console.log('[debug] info logging ON — press D for unlimited orbit, V to verify screen quad.');
   }
 
-  window.addEventListener('keydown', async (e) => {
+  window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     if (key === 'd') {
-      if (!orbit) {
-        const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-        orbit = new OrbitControls(camera, canvas);
-        orbit.enableDamping = true;
-        orbit.addEventListener('change', () => { dirty = true; });
-        console.log('[debug] OrbitControls ON — drag to orbit. Press D again to stop.');
-      } else {
-        orbit.dispose();
-        orbit = null;
-        console.log('[debug] OrbitControls OFF.');
-      }
+      freeOrbit = !freeOrbit;
+      if (app.controls) app.controls.setFree(freeOrbit);
+      console.log(`[debug] unlimited orbit ${freeOrbit ? 'ON' : 'OFF'}.`);
       dirty = true;
       return;
     }
@@ -210,7 +207,7 @@ function boot() {
     const now = performance.now();
     last = now;
 
-    if (orbit) { orbit.update(); dirty = true; }
+    if (app.controls) { if (app.controls.update(now)) dirty = true; }
 
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
