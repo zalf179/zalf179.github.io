@@ -7,6 +7,7 @@ import {
 } from './scene.js';
 import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
+import { createCameraPath } from './camera-path.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -68,8 +69,8 @@ function boot() {
   const scene = createScene();
   const camera = createCamera(window.innerWidth / Math.max(window.innerHeight, 1));
 
-  // Stage-1 establishing shot (replaced by the scrubbed path in stage 3).
-  // A 3/4 view from the right so the chair doesn't block the desk.
+  // Seed the camera with the stage-1 establishing shot; createCameraPath
+  // re-seats it exactly on the first stop as soon as the model is ready.
   camera.position.set(2.2, 1.55, 1.35);
   camera.lookAt(0.0, 0.72, 0.05);
 
@@ -78,21 +79,24 @@ function boot() {
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, screen: null, debug: false, markDirty: () => { dirty = true; },
+    lights: null, screen: null, path: null, debug: false, markDirty: () => { dirty = true; },
   };
   window.__zally = app;
 
   let dirty = true;
+  let lampLevel = 0;
 
   window.addEventListener('resize', () => {
     resizeRenderer(renderer, camera);
     if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+    if (app.path) app.path.refresh();
     dirty = true;
   });
   window.addEventListener('orientationchange', () => {
     window.setTimeout(() => {
       resizeRenderer(renderer, camera);
       if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+      if (app.path) app.path.refresh();
       dirty = true;
     }, 150);
   });
@@ -115,14 +119,25 @@ function boot() {
       app.bounds = bounds;
       app.meshes = findMeshes(model);
       app.lights = lights;
-      lights.lamp.setOn(1); // stage 4 drives this from camera proximity
+      lights.lamp.setOn(0); // driven by camera proximity once the path is up
 
       // CSS3D monitor screen (real HTML on the display quad).
       const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
       app.screen = screen;
       screen.setActive('home');
-      screen.setVisible(true);
-      screen.setInteractive(true);
+      screen.setVisible(false);
+
+      // Scroll-driven camera path (Lenis + ScrollTrigger, damped, 5 stops).
+      const params = new URLSearchParams(location.search);
+      const path = createCameraPath({
+        camera, webglScene: scene, reduced: REDUCED,
+        onStop: (idx, stop) => {
+          if (stop && stop.page) screen.setActive(stop.page);
+        },
+      });
+      app.path = path;
+      app.debug = params.has('debug');
+      if (app.debug) path.enableDebug();
 
       console.log(
         `[scene] loaded · ${report.textures} textures` +
@@ -133,7 +148,6 @@ function boot() {
       fadeLoader();
       dirty = true;
 
-      const params = new URLSearchParams(location.search);
       if (params.has('debug')) enableDebugInfo();
     })
     .catch((err) => {
@@ -203,6 +217,21 @@ function boot() {
     last = now;
 
     if (orbit) { orbit.update(); dirty = true; }
+
+    if (app.path) { if (app.path.update(now)) dirty = true; }
+
+    // Drive screen visibility + the desk lamp from the current stop.
+    if (app.path && app.screen) {
+      const idx = app.path.activeIdx;
+      app.screen.setVisible(idx >= 1);
+      app.screen.setInteractive(idx >= 1 && app.path.holding);
+      const target = idx >= 1 ? 1 : 0;
+      if (Math.abs(target - lampLevel) > 1e-3) {
+        lampLevel += (target - lampLevel) * 0.08;
+        if (app.lights) app.lights.lamp.setOn(lampLevel);
+        dirty = true;
+      }
+    }
 
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 

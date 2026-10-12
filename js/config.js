@@ -124,4 +124,77 @@ export const CONFIG = {
 
   // Below this viewport width we use the portrait waypoints.
   mobileWidth: 768,
+
+  // ---------------- camera motion (scroll-driven, damped) ----------------
+  // Two CatmullRomCurve3 splines (position + lookAt) thread every stop, with
+  // auto-inserted arc waypoints between stops (or explicit `via` points) so the
+  // camera swings around objects. One 0..1 progress samples both curves; each
+  // stop holds still for `holdRatio` of its scroll range, then eases to the next.
+  motion: {
+    curveType: 'centripetal',
+    curveTension: 0.5,
+    arcPullBack: 0.45,   // pull the mid-travel arc back along (mid - midLook)
+    arcLift: 0.18,       // and raise it this much
+    holdRatio: 0.38,     // fraction of each stop range spent holding still
+    positionLambda: 5.0, // frame-rate independent damping (higher = snappier)
+    lookAtLambda: 3.2,   // lower so the look direction trails the movement
+    fovPullBack: 9,      // fov widens this many degrees mid-travel
+    rollAmount: 1.2,     // subtle roll (degrees) mid-travel, 0 at stops
+    snapEnabled: true,
+    snapDuration: 0.6,
+    snapEpsilon: 0.004,
+    settleEpsilon: 0.0004,
+    snapClose: 0.003,    // when this close, jump exactly onto the target (kills the asymptote)
+  },
+
+  // Scroll stops, in scroll order. 5 stops == 5 progress dots.
+  //   pos  : camera position [x,y,z]
+  //   look : lookAt target   [x,y,z]
+  //   fov  : vertical fov (deg)
+  //   via  : optional extra control points for this segment (skips auto arc)
+  //   arc  : optional per-stop override {pull, lift} for the auto arc
+  //   page : which monitor page this stop shows (stops 2+ keep camera on screen)
+  stops: [
+    {
+      id: 'intro', label: 'Intro', page: 'home',
+      desktop: { pos: [2.25, 1.68, 1.55], look: [-0.05, 0.72, 0.15], fov: 44 },
+      mobile: { pos: [2.7, 1.78, 1.95], look: [-0.05, 0.72, 0.15], fov: 50 },
+    },
+    {
+      id: 'home', label: 'Home', page: 'home',
+      desktop: { pos: [0.2132, 1.32, 0.6705], look: [0.5465, 1.2049, -0.0284], fov: 36 },
+      mobile: { pos: [0.0551, 1.344, 1.002], look: [0.5465, 1.2049, -0.0284], fov: 48 },
+      // Orbit the desk, sweep past lamp/books, then dolly into the screen.
+      via: {
+        desktop: [
+          { pos: [1.55, 1.5, 2.25], look: [-0.1, 0.7, 0.2] },
+          { pos: [-1.35, 1.25, 0.55], look: [-0.35, 0.95, -0.05] },
+          { pos: [-0.55, 1.3, 0.35], look: [0.5465, 1.2049, -0.0284] },
+        ],
+        mobile: [
+          { pos: [1.9, 1.55, 2.5], look: [-0.1, 0.7, 0.2] },
+          { pos: [-1.6, 1.3, 0.7], look: [-0.35, 0.95, -0.05] },
+          { pos: [-0.35, 1.35, 0.8], look: [0.5465, 1.2049, -0.0284] },
+        ],
+      },
+    },
+    {
+      id: 'skills', label: 'Skills', page: 'skills',
+      desktop: { pos: [0.2332, 1.325, 0.6555], look: [0.5465, 1.2049, -0.0284], fov: 36 },
+      mobile: { pos: [0.0751, 1.3494, 0.987], look: [0.5465, 1.2049, -0.0284], fov: 48 },
+      arc: { pull: 0.09, lift: 0.03 },
+    },
+    {
+      id: 'projects', label: 'Projects', page: 'projects',
+      desktop: { pos: [0.2182, 1.31, 0.6405], look: [0.5465, 1.2049, -0.0284], fov: 36 },
+      mobile: { pos: [0.0601, 1.3344, 0.972], look: [0.5465, 1.2049, -0.0284], fov: 48 },
+      arc: { pull: 0.09, lift: 0.03 },
+    },
+    {
+      id: 'contact', label: 'Contact', page: 'contact',
+      desktop: { pos: [0.1932, 1.328, 0.6605], look: [0.5465, 1.2049, -0.0284], fov: 36 },
+      mobile: { pos: [0.0351, 1.3524, 0.992], look: [0.5465, 1.2049, -0.0284], fov: 48 },
+      arc: { pull: 0.09, lift: 0.03 },
+    },
+  ],
 };
