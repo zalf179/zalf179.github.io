@@ -4,11 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Muhammad Rizal Fadhillah · DevSecOps Architect</title>
-  <meta name="description" content="Muhammad Rizal Fadhillah — DevSecOps Architect &amp; Student. An interactive 3D room you scroll through.">
+  <meta name="description" content="Muhammad Rizal Fadhillah — DevSecOps Architect &amp; Student. A pure 3D, scroll-driven portfolio on a computer desk.">
+  <meta name="theme-color" content="#05070a">
 
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230f172a'/><text x='15' y='65' fill='%2322c55e' font-family='monospace' font-weight='bold' font-size='55'>&gt;_</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23070b10'/><text x='15' y='65' fill='%2339ff88' font-family='monospace' font-weight='bold' font-size='55'>&gt;_</text></svg>">
 
-  <!-- Three.js (pinned) + addons via importmap. MeshoptDecoder lives under addons/libs. -->
+  <!-- Three.js (pinned) + addons via importmap. MeshoptDecoder + CSS3DRenderer
+       + RoomEnvironment all live under three/addons/. -->
   <script type="importmap">
     {
       "imports": {
@@ -26,7 +28,7 @@
   <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.css">
 
-  <!-- Monospace font used by the on-screen terminal textures -->
+  <!-- Monospace font for the on-screen terminal -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -34,8 +36,14 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- The whole experience is a single fullscreen WebGL canvas. No HTML overlay text. -->
+  <!-- The whole experience is one fullscreen WebGL scene. No HTML text lives
+       outside the 3D scene — the only DOM overlays are the CSS3D monitor
+       screen (part of the scene), the progress dots, loader and error. -->
   <canvas id="scene-canvas"></canvas>
+
+  <!-- CSS3DRenderer layer: real HTML locked to the monitor's display quad.
+       Populated by js/screen.js; hidden while the monitor is far away. -->
+  <div id="css3d-layer" aria-hidden="true"></div>
 
   <!-- Friendly error banner (shown only when the scene cannot render). -->
   <div id="scene-error" hidden role="alert">
@@ -51,12 +59,13 @@
     </div>
   </div>
 
-  <!-- The only controls: 4 progress dots. -->
+  <!-- The only controls: 5 progress dots. -->
   <nav id="dots" aria-label="Scroll stops">
-    <button type="button" data-stop="0" aria-label="Home" title="Home"></button>
-    <button type="button" data-stop="1" aria-label="Skills" title="Skills"></button>
-    <button type="button" data-stop="2" aria-label="Projects" title="Projects"></button>
-    <button type="button" data-stop="3" aria-label="Contact" title="Contact"></button>
+    <button type="button" data-stop="0" aria-label="Intro" title="Intro"></button>
+    <button type="button" data-stop="1" aria-label="Home" title="Home"></button>
+    <button type="button" data-stop="2" aria-label="Skills" title="Skills"></button>
+    <button type="button" data-stop="3" aria-label="Projects" title="Projects"></button>
+    <button type="button" data-stop="4" aria-label="Contact" title="Contact"></button>
   </nav>
 
   <!-- Tiny scroll hint, fades out after the first scroll. -->
@@ -65,8 +74,9 @@
   <!-- Scrollable height: the canvas is pinned; this spacer drives the scrub. -->
   <div id="spacer" aria-hidden="true"></div>
 
-  <!-- Accessibility / SEO layer: real text + links, clipped off-screen (not display:none).
-       Also doubles as the static fallback when WebGL is unavailable. -->
+  <!-- Accessibility / SEO layer: real text + links, clipped off-screen (not
+       display:none). It mirrors the monitor content for crawlers and also
+       doubles as the static fallback when WebGL is unavailable. -->
   <div id="a11y">
     <header>
       <p>visitor@sec-ops-portfolio:~$ whoami</p>
@@ -131,7 +141,7 @@
 
   <noscript>
     <div class="noscript">
-      <p><strong>JavaScript is disabled.</strong> The 3D room cannot render, but the full portfolio is available below.</p>
+      <p><strong>JavaScript is disabled.</strong> The 3D desk cannot render, but the full portfolio is available below.</p>
       <p>visitor@sec-ops-portfolio:~$ whoami</p>
       <h1>Muhammad Rizal Fadhillah</h1>
       <p>DevSecOps Architect &amp; Student &middot; aspiring DevOps &amp; cyber-security engineer building secure, automated cloud-native infrastructure.</p>

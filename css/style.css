@@ -1,15 +1,16 @@
 /* ============================================================
    zalf179 — pure 3D portfolio
-   No overlay boxes, no blur/backdrop-filter above the canvas.
-   Allowed UI: loader, 4 dots, one scroll hint, hidden a11y layer.
+   Body DOM is only: canvas, CSS3D monitor layer, loader, error,
+   5 progress dots, scroll hint, spacer, hidden a11y layer.
+   All portfolio text lives ON the 3D monitor screen.
    ============================================================ */
 
 :root {
-  --bg: #07090d;
-  --accent: #33ff77;
-  --accent-dim: rgba(51, 255, 119, 0.35);
+  --bg: #05070a;
+  --accent: #39ff88;
+  --accent-dim: rgba(57, 255, 136, 0.35);
   --ink: #dfe2eb;
-  --muted: #93a29a;
+  --muted: #8fa39a;
 }
 
 * { box-sizing: border-box; }
@@ -23,14 +24,17 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--bg);
   color: var(--ink);
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-x: hidden;
+  /* Dark, moody corner-of-a-room vignette behind the transparent canvas. */
+  background:
+    radial-gradient(120% 95% at 50% 42%, #0d141c 0%, #070b11 42%, #04060a 68%, #010203 100%)
+    fixed;
 }
 
 /* ------------------------------------------------------------
-   Fullscreen canvas — never CSS-scaled below internal res.
+   Fullscreen WebGL canvas + CSS3D layer, perfectly aligned.
    ------------------------------------------------------------ */
 #scene-canvas {
   position: fixed;
@@ -43,11 +47,24 @@ body {
   outline: none;
 }
 
+#css3d-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  visibility: hidden; /* shown only when the monitor is near/in frame */
+}
+#css3d-layer.visible { visibility: visible; }
+#css3d-layer.is-hold { pointer-events: none; }
+/* Interactive only while the camera holds at the monitor. */
+#css3d-layer.is-hold .screen { pointer-events: auto; }
+
 /* Scroll height that drives the scrubbed camera timeline. */
 #spacer {
   position: relative;
   width: 100%;
-  height: 400vh;
+  height: 500vh;
   pointer-events: none;
 }
 
@@ -78,8 +95,8 @@ body {
 }
 .loader-bar {
   height: 4px;
-  background: #141a20;
-  border: 1px solid #23302a;
+  background: #0e1319;
+  border: 1px solid #1b2a24;
   overflow: hidden;
 }
 #loader-fill {
@@ -132,12 +149,12 @@ body {
   height: 11px;
   padding: 0;
   border-radius: 999px;
-  background: rgba(147, 162, 154, 0.25);
-  border: 1px solid rgba(147, 162, 154, 0.6);
+  background: rgba(143, 163, 154, 0.22);
+  border: 1px solid rgba(143, 163, 154, 0.6);
   cursor: pointer;
   transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
 }
-#dots button:hover { background: rgba(51, 255, 119, 0.4); }
+#dots button:hover { background: rgba(57, 255, 136, 0.4); }
 #dots button.active {
   background: var(--accent);
   border-color: var(--accent);
@@ -192,6 +209,7 @@ body {
 
 /* Static fallback when WebGL is unavailable / load fails: reveal content. */
 body.no-webgl #scene-canvas,
+body.no-webgl #css3d-layer,
 body.no-webgl #dots,
 body.no-webgl #scroll-hint,
 body.no-webgl #spacer { display: none; }
@@ -199,14 +217,13 @@ body.no-webgl #a11y {
   position: static;
   width: auto;
   height: auto;
-  margin: 0;
+  margin: 0 auto;
   padding: 1.5rem;
   overflow: visible;
   clip: auto;
   clip-path: none;
   white-space: normal;
   max-width: 64rem;
-  margin-inline: auto;
   line-height: 1.6;
 }
 body.no-webgl #a11y h1 { font-size: clamp(1.6rem, 5vw, 2.4rem); }

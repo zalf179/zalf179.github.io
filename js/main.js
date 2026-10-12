@@ -1,57 +1,33 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import {
-  createRenderer,
-  createCamera,
-  createScene,
-  addLights,
-  loadRoom,
-  collectScreens,
-  measureBounds,
-  resizeRenderer,
-  setMaxAnisotropy,
+  createRenderer, createCamera, createScene, setupEnvironment,
+  loadModel, measureBounds, resizeRenderer, setMaxAnisotropy,
+  findMeshes, verifyScreenQuad,
 } from './scene.js';
-import { createScreens } from './screens.js';
-import { createCameraPath } from './camera-path.js';
+import { setupLights } from './lighting.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
 const loaderFill = document.getElementById('loader-fill');
 const loaderLabel = document.getElementById('loader-label');
 const errorEl = document.getElementById('scene-error');
-const dotEls = Array.from(document.querySelectorAll('#dots button'));
 const hintEl = document.getElementById('scroll-hint');
 
-let dirty = true;
-const markDirty = () => { dirty = true; };
-
-const REDUCED = window.matchMedia
+export const REDUCED = window.matchMedia
   ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
   : false;
 
-// Lenis smooth scroll, connected to ScrollTrigger + driven by the gsap ticker.
-// Disabled entirely under prefers-reduced-motion.
-function setupSmoothScroll() {
-  if (REDUCED || !window.Lenis || !window.gsap || !window.ScrollTrigger) return null;
-  const lenis = new window.Lenis({ duration: 1.05, smoothWheel: true, wheelMultiplier: 1, touchMultiplier: 1.5 });
-  lenis.on('scroll', window.ScrollTrigger.update);
-  window.gsap.ticker.add((t) => lenis.raf(t * 1000));
-  window.gsap.ticker.lagSmoothing(0);
-  return lenis;
-}
-
-// ---------------------------------------------------------------- UI helpers
+// ------------------------------------------------------------------- UI
 function setProgress(pct) {
   if (loaderFill) loaderFill.style.width = `${pct}%`;
   if (loaderLabel) loaderLabel.textContent = `LOADING ${Math.round(pct)}%`;
 }
-
 function fadeLoader() {
   if (!loaderEl) return;
   loaderEl.classList.add('done');
   window.setTimeout(() => loaderEl.remove(), 700);
 }
-
 function showError(message) {
   document.body.classList.add('no-webgl');
   if (errorEl) {
@@ -61,18 +37,11 @@ function showError(message) {
   }
   if (loaderEl) loaderEl.classList.add('done');
 }
-
 function webglAvailable() {
   try {
     const c = document.createElement('canvas');
     return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
-  } catch {
-    return false;
-  }
-}
-
-function setDotActive(index) {
-  dotEls.forEach((d, i) => d.classList.toggle('active', i === index));
+  } catch { return false; }
 }
 
 // ------------------------------------------------------------------- boot
@@ -80,7 +49,7 @@ function boot() {
   if (!canvas) return;
 
   if (!webglAvailable()) {
-    showError('WebGL is not available on this device, so the 3D room cannot render. The full portfolio is shown as plain text instead.');
+    showError('WebGL is not available on this device, so the 3D scene cannot render. The full portfolio is shown as plain text instead.');
     return;
   }
 
@@ -98,125 +67,58 @@ function boot() {
   const scene = createScene();
   const camera = createCamera(window.innerWidth / Math.max(window.innerHeight, 1));
 
-  // Establish the room in frame before the model arrives (nice wide shot).
-  camera.position.set(2.6, 1.55, 2.6);
-  camera.lookAt(-0.12, 0.9, -0.15);
+  // Stage-1 establishing shot (replaced by the scrubbed path in stage 3).
+  // A 3/4 view from the right so the chair doesn't block the desk.
+  camera.position.set(2.2, 1.55, 1.35);
+  camera.lookAt(0.0, 0.72, 0.05);
 
   resizeRenderer(renderer, camera);
   renderer.render(scene, camera);
 
-  const app = { renderer, scene, camera, room: null, bounds: null, screens: null, screensUI: null, path: null, lenis: null, debug: false, pathDebugOn: false, markDirty, onFrame: null };
-  let path = null;
+  const app = {
+    renderer, scene, camera, model: null, bounds: null, meshes: null,
+    lights: null, debug: false, markDirty: () => { dirty = true; },
+  };
+  window.__zally = app;
 
-  const lenis = setupSmoothScroll();
-  app.lenis = lenis;
+  let dirty = true;
+
+  window.addEventListener('resize', () => { resizeRenderer(renderer, camera); dirty = true; });
+  window.addEventListener('orientationchange', () => {
+    window.setTimeout(() => { resizeRenderer(renderer, camera); dirty = true; }, 150);
+  });
 
   const manager = new THREE.LoadingManager();
-  manager.onProgress = (_url, loaded, total) => {
-    if (total > 0) setProgress((loaded / total) * 100);
-  };
+  manager.onProgress = (_url, loaded, total) => { if (total > 0) setProgress((loaded / total) * 100); };
   manager.onError = (url) => console.error('Asset load error:', url);
 
-  window.addEventListener('resize', () => {
-    resizeRenderer(renderer, camera);
-    if (path) path.rebuild();
-    if (app.screensUI) app.screensUI.setPortrait(window.innerWidth < CONFIG.mobileWidth);
-    markDirty();
-  });
-  window.addEventListener('orientationchange', () => {
-    window.setTimeout(() => {
-      resizeRenderer(renderer, camera);
-      if (path) path.rebuild();
-      if (app.screensUI) app.screensUI.setPortrait(window.innerWidth < CONFIG.mobileWidth);
-      markDirty();
-    }, 150);
-  });
+  setupEnvironment(scene, renderer);
 
-  loadRoom(manager)
-    .then(async (gltf) => {
-      const room = gltf.scene || gltf.scenes[0];
-      scene.add(room);
+  loadModel(manager)
+    .then(({ gltf, report }) => {
+      const model = gltf.scene || gltf.scenes[0];
+      scene.add(model);
 
-      const bounds = measureBounds(room);
-      addLights(scene, bounds);
+      const bounds = measureBounds(model);
+      const lights = setupLights(scene, bounds);
 
-      const screens = collectScreens(room);
-      app.room = room;
+      app.model = model;
       app.bounds = bounds;
-      app.screens = screens;
+      app.meshes = findMeshes(model);
+      app.lights = lights;
+      lights.lamp.setOn(1); // stage 4 drives this from camera proximity
 
-      // Wait for the monospace font so the canvas text is crisp on first draw.
-      try { await document.fonts.ready; } catch { /* draw anyway */ }
-
-      const screensUI = createScreens({
-        renderer,
-        stops: CONFIG.stops,
-        screens,
-        onNeedsRender: markDirty,
-      });
-      screensUI.drawAll();
-      app.screensUI = screensUI;
-      if (CONFIG.stops[0]) screensUI.setActive(CONFIG.stops[0].id);
-
-      // Scrubbed, spline-based, damped camera path through the four stops.
-      path = createCameraPath({
-        scene,
-        camera,
-        lenis,
-        reduced: REDUCED,
-        onNeedsRender: markDirty,
-        onStop: (index, stop) => {
-          setDotActive(index);
-          screensUI.setActive(stop.id);
-        },
-      });
-      app.path = path;
-      app.onFrame = (now, dt) => {
-        let active = path.update(now, dt);
-        if (screensUI.update(now)) active = true;
-        return active;
-      };
-
-      // Dots: click = smooth scroll to that stop.
-      dotEls.forEach((dot) => {
-        dot.addEventListener('click', () => path.scrollToStop(Number(dot.dataset.stop)));
-      });
-
-      // In-scene links: hover for a pointer cursor, click to open.
-      const hitAt = (e) => screensUI.pick(e.clientX, e.clientY, camera, canvas);
-      canvas.addEventListener('pointermove', (e) => {
-        if (e.pointerType === 'touch') return;
-        canvas.style.cursor = hitAt(e) ? 'pointer' : 'default';
-      });
-      canvas.addEventListener('pointerleave', () => { canvas.style.cursor = 'default'; });
-      canvas.addEventListener('click', (e) => {
-        const hit = hitAt(e);
-        if (!hit) return;
-        const a = document.createElement('a');
-        a.href = hit.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      });
+      console.log(
+        `[scene] loaded · ${report.textures} textures` +
+        (report.lowRes.length ? ` · low-res: ${report.lowRes.map(t => `${t.mesh}/${t.name} ${t.w}x${t.h}`).join(', ')}` : ''),
+      );
 
       setProgress(100);
       fadeLoader();
-      setDotActive(0);
-      markDirty();
+      dirty = true;
 
-      // Debug helpers: ?debug exposes the app + path overlay, ?stop=N jumps.
       const params = new URLSearchParams(location.search);
-      if (params.has('debug')) {
-        app.debug = true;
-        app.pathDebugOn = true;
-        path.setDebug(true);
-      }
-      if (params.has('stop')) {
-        const i = Math.max(0, Math.min(CONFIG.stops.length - 1, parseInt(params.get('stop'), 10) || 0));
-        window.requestAnimationFrame(() => path.scrollToStop(i));
-      }
+      if (params.has('debug')) enableDebugInfo();
     })
     .catch((err) => {
       console.error('Scene load failed:', err);
@@ -229,46 +131,52 @@ function boot() {
     window.addEventListener('scroll', onFirstScroll, { passive: true });
   }
 
-  // ---------------------------------------------------------- debug controls
-  // D  = toggle path debug (splines, waypoint spheres, progress HUD)
-  // O  = toggle OrbitControls (free-look tuning)
+  // ------------------------------------------------------------ debug
+  // D = toggle OrbitControls (free-look tuning) + perf logging.
+  // V = verify the hardcoded screen quad against the mesh geometry.
   let orbit = null;
+  let infoOn = false;
+  function enableDebugInfo() {
+    infoOn = true;
+    app.debug = true;
+    console.log('[debug] info logging ON — press D for OrbitControls, V to verify screen quad.');
+  }
+
   window.addEventListener('keydown', async (e) => {
     const key = e.key.toLowerCase();
-
     if (key === 'd') {
-      app.debug = true;
-      app.pathDebugOn = !app.pathDebugOn;
-      if (path) path.setDebug(app.pathDebugOn);
-      console.log(`[debug] path overlay ${app.pathDebugOn ? 'ON' : 'OFF'} · perf logging ON`);
-      markDirty();
-      return;
-    }
-
-    if (key === 'o') {
       if (!orbit) {
         const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
         orbit = new OrbitControls(camera, canvas);
         orbit.enableDamping = true;
-        orbit.addEventListener('change', markDirty);
-        console.log('[debug] OrbitControls enabled — drag to orbit, press O again to stop.');
-        markDirty();
+        orbit.addEventListener('change', () => { dirty = true; });
+        console.log('[debug] OrbitControls ON — drag to orbit. Press D again to stop.');
       } else {
         orbit.dispose();
         orbit = null;
-        console.log('[debug] OrbitControls disabled.');
-        markDirty();
+        console.log('[debug] OrbitControls OFF.');
       }
+      dirty = true;
+      return;
+    }
+    if (key === 'v' && app.meshes) {
+      const mon = app.meshes.get('Monitor_Monitor_0');
+      const r = verifyScreenQuad(mon);
+      if (!r) { console.warn('[verify] could not measure monitor mesh.'); return; }
+      const expected = new THREE.Vector3(...CONFIG.screen.center);
+      const d = r.center.distanceTo(expected);
+      console.log(
+        `[verify] measured screen centre ${r.center.toArray().map(v => v.toFixed(4)).join(', ')} ` +
+        `vs config ${CONFIG.screen.center.join(', ')} · delta ${d.toFixed(4)}`,
+      );
+      if (d > 0.02) console.warn('[verify] WARNING: hardcoded screen quad may have drifted.');
+      return;
     }
   });
 
-  // ------------------------------------------------------------ render loop
-  // Stays "active" (rendering every frame) while the damped camera is still
-  // converging, while scrolling, or while a screen is typing; otherwise it
-  // goes idle and only re-renders on demand.
+  // ------------------------------------------------------------ loop
   let last = performance.now();
-  let perfFrames = 0;
-  let perfRenders = 0;
+  let frames = 0;
   let perfLast = performance.now();
 
   function loop() {
@@ -276,34 +184,27 @@ function boot() {
     if (document.hidden) { last = performance.now(); return; }
 
     const now = performance.now();
-    const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
-    let active = false;
-    if (app.onFrame) active = app.onFrame(now, dt);
-    if (orbit) { orbit.update(); active = true; }
+    if (orbit) { orbit.update(); dirty = true; }
 
-    perfFrames++;
-    if (dirty || active) {
+    if (dirty) {
       renderer.render(scene, camera);
       dirty = false;
-      perfRenders++;
     }
 
-    if (app.debug && now - perfLast >= 1000) {
-      const fps = Math.round((perfFrames * 1000) / (now - perfLast));
-      console.log(`[perf] ${fps} fps · ${perfRenders} renders/s · calls ${renderer.info.render.calls} · ${active ? 'active' : 'idle'}`);
-      perfFrames = 0;
-      perfRenders = 0;
+    frames++;
+    if (infoOn && now - perfLast >= 1000) {
+      const fps = Math.round((frames * 1000) / (now - perfLast));
+      const i = renderer.info;
+      console.log(`[perf] ${fps} fps · calls ${i.render.calls} · tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
+      frames = 0;
       perfLast = now;
     }
   }
 
-  // Start at the top on (re)load.
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.scrollTo(0, 0);
-
-  window.__zally = app; // always available for the keyboard debug shortcut
   loop();
 }
 

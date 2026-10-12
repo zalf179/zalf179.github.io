@@ -1,109 +1,92 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CONFIG } from './config.js';
 
+// Renderer: SRGB output, ACES tone mapping, capped pixel ratio, transparent
+// canvas so the CSS vignette behind it shows through.
 export function createRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: CONFIG.renderer.antialias,
+    alpha: true,
     powerPreference: 'high-performance',
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CONFIG.renderer.pixelRatioCap));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = CONFIG.renderer.toneMappingExposure;
   renderer.shadowMap.enabled = !!CONFIG.renderer.shadows;
-  if (CONFIG.renderer.shadows) {
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  }
-  renderer.setClearColor(CONFIG.renderer.clearColor, 1);
+  if (CONFIG.renderer.shadows) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(CONFIG.renderer.clearColor, CONFIG.renderer.clearAlpha);
   return renderer;
 }
 
 export function createCamera(aspect) {
-  return new THREE.PerspectiveCamera(40, aspect, CONFIG.camera.near, CONFIG.camera.far);
+  return new THREE.PerspectiveCamera(CONFIG.camera.fov, aspect, CONFIG.camera.near, CONFIG.camera.far);
 }
 
 export function createScene() {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(CONFIG.renderer.clearColor);
+  scene.background = null; // CSS gradient shows through the alpha canvas
+  const f = CONFIG.environment.fog;
+  scene.fog = new THREE.Fog(f.color, f.near, f.far);
   return scene;
 }
 
-export function addLights(scene, bounds) {
-  const { hemisphere, key, fill } = CONFIG.lights;
-
-  const hemi = new THREE.HemisphereLight(hemisphere.sky, hemisphere.ground, hemisphere.intensity);
-  hemi.position.set(0, 3, 0);
-  scene.add(hemi);
-
-  const dir = new THREE.DirectionalLight(key.color, key.intensity);
-  dir.position.set(...key.position);
-  const centre = bounds ? bounds.getCenter(new THREE.Vector3()) : new THREE.Vector3();
-  dir.target.position.copy(centre);
-  scene.add(dir);
-  scene.add(dir.target);
-
-  if (CONFIG.renderer.shadows) {
-    dir.castShadow = true;
-    dir.shadow.mapSize.set(CONFIG.renderer.shadowMapSize, CONFIG.renderer.shadowMapSize);
-    const b = CONFIG.lights.shadowBounds;
-    dir.shadow.camera.near = 0.1;
-    dir.shadow.camera.far = 12;
-    dir.shadow.camera.left = -b;
-    dir.shadow.camera.right = b;
-    dir.shadow.camera.top = b;
-    dir.shadow.camera.bottom = -b;
-    dir.shadow.bias = -0.0006;
-    dir.shadow.camera.updateProjectionMatrix();
-  }
-
-  const fillLight = new THREE.DirectionalLight(fill.color, fill.intensity);
-  fillLight.position.set(...fill.position);
-  scene.add(fillLight);
-
-  return { hemi, dir, fill: fillLight };
+// PMREM + RoomEnvironment: low-intensity IBL for believable PBR reflections.
+export function setupEnvironment(scene, renderer) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = envTex;
+  pmrem.dispose();
+  return envTex;
 }
 
-// Loads scene.glb (meshopt-compressed + webp textures) and applies correct
-// color space / anisotropy / filtering to every texture it contains.
-export function loadRoom(manager) {
+let _maxAniso = 1;
+export function setMaxAnisotropy(v) { _maxAniso = Math.max(1, v | 0); }
+export function getMaxAnisotropy() { return _maxAniso; }
+
+// Loads computer_desk-opt.glb (meshopt-compressed + webp + quantized) and
+// fixes colour space / anisotropy / filtering on every texture.
+export function loadModel(manager) {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader(manager);
-    loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.setMeshoptDecoder(MeshoptDecoder); // REQUIRED for this file
     loader.load(
-      CONFIG.assets.glb,
+      CONFIG.assets.model,
       (gltf) => {
-        processTextures(gltf.scene);
-        resolve(gltf);
+        const report = processTextures(gltf.scene);
+        resolve({ gltf, report });
       },
       undefined,
-      reject
+      reject,
     );
   });
 }
 
-// Returns { maxAnisotropy } for logging and reports low-res textures.
-export function processTextures(room) {
+export function processTextures(root) {
   const seen = new Map();
   const lowRes = [];
 
-  room.traverse((obj) => {
+  root.traverse((obj) => {
     if (!obj.isMesh) return;
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
     for (const mat of mats) {
       if (!mat) continue;
+
+      // Low-intensity env map so reflections read but stay dark.
+      if ('envMapIntensity' in mat) mat.envMapIntensity = CONFIG.env.intensity;
+
       for (const key of Object.keys(mat)) {
         const tex = mat[key];
         if (!tex || !tex.isTexture) continue;
 
-        // Colour textures must be sRGB; data textures (normal/rough/metal) stay linear.
-        const isColor = /map$/i.test(key) && !/normal|roughness|metalness|specular|alpha/i.test(key);
+        // Colour maps must be sRGB; data maps (normal/rough/metal/ao) linear.
+        const isColor = /map$/i.test(key) && !/normal|rough|metal|specular|alpha|ao|occlusion/i.test(key);
         tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-
-        const maxAniso = getMaxAnisotropy();
-        tex.anisotropy = maxAniso;
+        tex.anisotropy = _maxAniso;
         tex.minFilter = THREE.LinearMipmapLinearFilter;
         tex.magFilter = THREE.LinearFilter;
         tex.generateMipmaps = true;
@@ -120,30 +103,11 @@ export function processTextures(room) {
     }
   });
 
-  return { lowRes };
+  return { lowRes, textures: seen.size };
 }
 
-// Small helper so processTextures can report without a renderer handle.
-let _maxAniso = 1;
-export function setMaxAnisotropy(v) { _maxAniso = Math.max(1, v | 0); }
-function getMaxAnisotropy() { return _maxAniso; }
-
-// Exact-name lookup for the four screen meshes + a list of all screen quads.
-export function collectScreens(room) {
-  const byName = new Map();
-  const all = [];
-  room.traverse((obj) => {
-    if (obj.isMesh) byName.set(obj.name, obj);
-  });
-  for (const stop of CONFIG.stops) {
-    const mesh = byName.get(stop.mesh);
-    if (mesh) all.push(mesh);
-  }
-  return { byName, all };
-}
-
-export function measureBounds(room) {
-  return new THREE.Box3().setFromObject(room);
+export function measureBounds(root) {
+  return new THREE.Box3().setFromObject(root);
 }
 
 export function resizeRenderer(renderer, camera) {
@@ -154,4 +118,52 @@ export function resizeRenderer(renderer, camera) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CONFIG.renderer.pixelRatioCap));
   renderer.setSize(w, h, false);
   return { width: w, height: h };
+}
+
+// Find specific named meshes once, for references (chair sway, screen verify).
+export function findMeshes(root) {
+  const byName = new Map();
+  root.traverse((o) => { if (o.isMesh) byName.set(o.name, o); });
+  return byName;
+}
+
+// Debug helper: re-derive the display quad from the monitor mesh geometry and
+// compare with CONFIG.screen. Returns { ok, center, ... } or null.
+export function verifyScreenQuad(monitorMesh) {
+  if (!monitorMesh) return null;
+  const g = monitorMesh.geometry;
+  const pos = g.attributes.position;
+  const idx = g.index;
+  const nm = new THREE.Matrix3().getNormalMatrix(monitorMesh.matrixWorld);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  const triCount = idx ? idx.count / 3 : pos.count / 3;
+  const groups = new Map();
+  const gp = (i) => a.fromBufferAttribute(pos, i).applyMatrix4(monitorMesh.matrixWorld).clone();
+
+  for (let t = 0; t < triCount; t++) {
+    const i0 = idx ? idx.getX(t * 3) : t * 3;
+    const i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1;
+    const i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+    const v0 = gp(i0); const v1 = gp(i1); const v2 = gp(i2);
+    n.fromBufferAttribute(g.attributes.normal, i0).applyMatrix3(nm).normalize();
+    const key = [Math.round(n.x * 5) / 5, Math.round(n.y * 5) / 5, Math.round(n.z * 5) / 5].join(',');
+    const area = new THREE.Vector3().subVectors(v1, v0).cross(new THREE.Vector3().subVectors(v2, v0)).length() / 2;
+    if (!groups.has(key)) groups.set(key, { n: n.clone(), area: 0, pts: [] });
+    const grp = groups.get(key);
+    grp.area += area;
+    grp.pts.push(v0, v1, v2);
+  }
+
+  // Largest-area group whose normal points forward (+Z) — the display panel.
+  let best = null;
+  for (const grp of groups.values()) {
+    if (grp.n.z < 0.5) continue;
+    if (!best || grp.area > best.area) best = grp;
+  }
+  if (!best) return null;
+
+  const box = new THREE.Box3();
+  for (const p of best.pts) box.expandByPoint(p);
+  const center = box.getCenter(new THREE.Vector3());
+  return { ok: true, center, normal: best.n.clone(), area: best.area };
 }
