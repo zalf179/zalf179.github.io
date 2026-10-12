@@ -56,6 +56,26 @@ export function setupEnvironment(scene, renderer) {
   wall.receiveShadow = true;
   scene.add(wall);
 
+  // Side walls close the room around the desk while staying beyond the
+  // free-look orbit. Their inner faces point toward the center of the room.
+  const sideGeometry = new THREE.PlaneGeometry(R.sideWallDepth, R.wallHeight);
+  const sideMaterial = new THREE.MeshStandardMaterial({
+    color: R.wallColor,
+    roughness: R.wallRoughness,
+    side: THREE.DoubleSide,
+  });
+  for (const [name, x, rotationY] of [
+    ['left', -R.sideWallX, Math.PI / 2],
+    ['right', R.sideWallX, -Math.PI / 2],
+  ]) {
+    const sideWall = new THREE.Mesh(sideGeometry, sideMaterial);
+    sideWall.name = `room-${name}-wall`;
+    sideWall.rotation.y = rotationY;
+    sideWall.position.set(x, R.wallHeight / 2, (R.sideWallFrontZ + R.wallZ) / 2);
+    sideWall.receiveShadow = true;
+    scene.add(sideWall);
+  }
+
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;

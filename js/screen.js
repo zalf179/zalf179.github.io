@@ -3,31 +3,48 @@ import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer
 import { CONFIG, CREDIT_TEXT } from './config.js';
 
 // ===========================================================================
-// The monitor screen: a CSS3DObject holding real HTML, locked to the display
-// quad's world transform. A separate invisible depth-only plane ("hole") is
-// placed exactly over the display so the WebGL scene keeps correct depth while
-// the DOM shows through. Monitor_Monitor_0 itself is left untouched.
+// The monitor screen: a real HTML page (CSS3DObject) locked to the display
+// quad. The world matrix is built from the 4 quad corners with makeBasis
+// (right/up/normal), so it is never derived from lookAt() or a normal-only
+// rotation. A matching depth-only plane ("hole") is written into the WebGL
+// scene: the DOM layer sits BENEATH the transparent WebGL canvas, the hole
+// writes depth slightly in front of the monitor's own display panel, so the
+// canvas is transparent over the glass (the HTML shows through) while the
+// frame, chair and keyboard correctly occlude the screen.
+//
+// Because CSS3DRenderer works in CSS-pixel space while this is a metre-scale
+// scene, the CSS3DObject lives under a group scaled by CSS_SCALE_K and is
+// viewed by a clone of the WebGL camera moved to camera.position * K. The
+// projection is scale-invariant, so it matches the WebGL camera exactly.
 // ===========================================================================
 
-const PROMPT = 'visitor@sec-ops-portfolio:~$';
+const DEG = Math.PI / 180;
+const INITIAL_APP = 'whoami';
+// World metre -> CSS pixel factor for CSS3DRenderer. Arbitrary, cancels out.
+const CSS_SCALE_K = 1000;
+const TXT_ICON = `<svg viewBox="0 0 54 64" aria-hidden="true" focusable="false">
+  <path class="txt-page" d="M7 2h27l13 13v45a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/>
+  <path class="txt-fold" d="M34 2v11a2 2 0 0 0 2 2h11Z"/>
+  <path class="txt-lines" d="M13 26h27M13 33h27M13 40h27M13 47h20"/>
+</svg>`;
 
 // ------------------------------------------------------------------ pages
 const PAGES = {
   home: () => `
     <div class="page page-home" data-name="home">
-      <div class="line"><span class="ps1">${PROMPT}</span> <span class="cmd">whoami</span></div>
+      <div class="desktop-icons" aria-label="Desktop files">
+        <button type="button" class="desktop-file" data-page="whoami"><span class="file-icon">${TXT_ICON}</span><span>whoami.txt</span></button>
+        <button type="button" class="desktop-file" data-page="skills"><span class="file-icon">${TXT_ICON}</span><span>skills.txt</span></button>
+        <button type="button" class="desktop-file" data-page="projects"><span class="file-icon">${TXT_ICON}</span><span>projects.txt</span></button>
+        <button type="button" class="desktop-file" data-page="contact"><span class="file-icon">${TXT_ICON}</span><span>contact.txt</span></button>
+      </div>
+    </div>`,
+
+  whoami: () => `
+    <div class="page page-whoami" data-name="whoami">
       <h1 class="name">Muhammad Rizal Fadhillah</h1>
-      <div class="line"><span class="ps1">${PROMPT}</span> <span class="cmd">cat role.txt</span></div>
-      <p class="role">DevSecOps Architect &amp; Student</p>
-      <p class="dim">aspiring DevOps &amp; cyber-security engineer building secure,<br>automated cloud-native infrastructure.</p>
-      <div class="line"><span class="ps1">${PROMPT}</span> <span class="cmd">ls ~/links</span></div>
-      <nav class="links">
-        <a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-        <a href="https://medium.com/@zalfd" target="_blank" rel="noopener noreferrer">Medium</a>
-        <a href="Resume.pdf" target="_blank" rel="noopener noreferrer">Resume.pdf</a>
-      </nav>
-      <p class="comment">// scroll to explore the desk</p>
+      <p class="role">DevSecOps &amp; Student</p>
+      <p class="tagline">secure &middot; automated &middot; cloud-native</p>
     </div>`,
 
   skills: () => `
@@ -92,7 +109,6 @@ const PAGES = {
 
   contact: () => `
     <div class="page page-contact" data-name="contact">
-      <div class="line"><span class="ps1">${PROMPT}</span> <span class="cmd">./get_contact_info.sh</span></div>
       <div class="rows">
         <div class="row"><span class="plus">[+]</span><b>GitHub</b><a href="https://github.com/zalf179" target="_blank" rel="noopener noreferrer">github.com/zalf179</a></div>
         <div class="row"><span class="plus">[+]</span><b>LinkedIn</b><a href="https://www.linkedin.com/in/rizalfadh/" target="_blank" rel="noopener noreferrer">linkedin.com/in/rizalfadh</a></div>
@@ -101,138 +117,552 @@ const PAGES = {
         <div class="row"><span class="plus">[+]</span><b>Email</b><a href="mailto:muhammadrizalfadhillah@gmail.com">muhammadrizalfadhillah@gmail.com</a></div>
       </div>
       <div class="cta">Ready to Secure Your Velocity?</div>
-      <p class="dim">Open to architectural consultation, pipeline auditing, or senior-level DevSecOps positions.</p>
+      <p class="dim">Still growing in DevSecOps and open to learning opportunities, collaboration, and junior roles.</p>
       <p class="status"><span class="dot">&#9679;</span> [STATUS] Ready for encrypted communications.</p>
       <footer class="credit${CONFIG.credit.placeholder ? ' placeholder' : ''}">3D model credit: ${escapeHtml(CREDIT_TEXT)}</footer>
     </div>`,
 };
 
-const TITLES = { home: 'home.sh', skills: 'skills.conf', projects: 'projects.md', contact: 'contact.sh' };
+const TITLES = { home: '', whoami: 'whoami.txt', skills: 'skills.txt', projects: 'projects.txt', contact: 'contact.txt' };
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// ------------------------------------------------------------- transform
-// Build the world transform for the display quad from CONFIG.screen.
-function screenBasis(s) {
-  const right = new THREE.Vector3(...s.right).normalize();
-  const up = new THREE.Vector3(...s.up).normalize();
-  const normal = new THREE.Vector3(...s.normal).normalize();
-  return { right, up, normal };
+function appWindow(id, content) {
+  return `<section class="app-window" data-window="${id}" aria-label="${TITLES[id]}"${id === INITIAL_APP ? '' : ' hidden'}>` +
+    `<header class="app-titlebar"><span class="app-title-icon">▤</span><span class="app-title">${TITLES[id]}</span>` +
+      `<div class="window-actions">` +
+        `<button type="button" data-window-action="minimize" aria-label="Minimize">&#x2212;</button>` +
+        `<button type="button" data-window-action="maximize" aria-label="Maximize">&#x25A1;</button>` +
+        `<button type="button" data-window-action="close" aria-label="Close">&#x2715;</button>` +
+      `</div>` +
+    `</header><div class="app-content">${content}</div><div class="resize-corner" aria-hidden="true"></div></section>`;
 }
 
-function applyScreenTransform(obj, s, extraOffset = 0) {
-  const { right, up, normal } = screenBasis(s);
-  const basis = new THREE.Matrix4().makeBasis(right, up, normal);
-  obj.quaternion.setFromRotationMatrix(basis);
-  obj.position.set(...s.center).addScaledVector(normal, s.offset + extraOffset);
+const v3 = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+
+// ------------------------------------------------------------ geometry/basis
+// Derive the display quad basis straight from the 4 corners: right = top edge
+// (TR-TL), up = left edge (TL-BL), normal = right x up. Flip right+normal if
+// the normal points away from the viewer so the content is never mirrored.
+function deriveGeometry(S) {
+  const c = S.corners;
+  const TL = v3(c.tl), TR = v3(c.tr), BL = v3(c.bl), BR = v3(c.br);
+  const fullW = TR.distanceTo(TL);
+  const fullH = TL.distanceTo(BL);
+  const center = new THREE.Vector3()
+    .add(TL).add(TR).add(BL).add(BR).multiplyScalar(0.25);
+  const right = new THREE.Vector3().subVectors(TR, TL).normalize();
+  const up = new THREE.Vector3().subVectors(TL, BL).normalize();
+  const normal = new THREE.Vector3().crossVectors(right, up).normalize();
+  const flipped = normal.z < 0;
+  if (flipped) { right.negate(); normal.negate(); }
+  return { TL, TR, BL, BR, fullW, fullH, center, right, up, normal, flipped };
+}
+
+// Working copy of the calibration knobs; initialised from CONFIG.screen so the
+// persisted values are applied at startup.
+function initialParams(S) {
+  return {
+    inset: { ...S.inset },
+    offset: [...S.offset],
+    scale: S.scale,
+    rotationOffset: { ...S.rotationOffset },
+  };
+}
+
+// Full transform for the display content, including inset, nudge, scale and
+// local rotation offset.
+function computeTransform(S, params, geo) {
+  const { left, right: r, top, bottom } = params.inset;
+  const dispW = geo.fullW * (1 - left - r);
+  const dispH = geo.fullH * (1 - top - bottom);
+  const center = geo.center.clone()
+    .addScaledVector(geo.right, ((left - r) / 2) * geo.fullW + params.offset[0])
+    .addScaledVector(geo.up, ((bottom - top) / 2) * geo.fullH + params.offset[1])
+    .addScaledVector(geo.normal, params.offset[2]);
+  const scaleX = (dispW / S.pageWidth) * params.scale;
+  const scaleY = (dispH / S.pageHeight) * params.scale;
+  const scaleObj = Math.min(scaleX, scaleY);
+  const basisQuat = new THREE.Quaternion().setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(geo.right, geo.up, geo.normal),
+  );
+  const ro = params.rotationOffset;
+  const rotQuat = new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(ro.pitch * DEG, ro.yaw * DEG, ro.roll * DEG, 'YXZ'),
+  );
+  const quaternion = basisQuat.multiply(rotQuat);
+  return {
+    center,
+    quaternion,
+    scaleObj,
+    scaleX,
+    scaleY,
+    dispW,
+    dispH,
+    contentW: S.pageWidth * scaleX,
+    contentH: S.pageHeight * scaleY,
+    basisQuat,
+    flipped: geo.flipped,
+  };
 }
 
 // ------------------------------------------------------------- factory
 export function createScreen({ webglScene, camera, onNeedsRender }) {
   const S = CONFIG.screen;
   const layer = document.getElementById('css3d-layer');
+  const geo = deriveGeometry(S);
+  const params = initialParams(S);
 
-  // CSS3D layer, perfectly over the WebGL canvas.
+  // ---- CSS3D layer (beneath the transparent WebGL canvas) ----
   const cssRenderer = new CSS3DRenderer();
   cssRenderer.setSize(window.innerWidth, window.innerHeight);
-  cssRenderer.domElement.style.position = 'absolute';
-  cssRenderer.domElement.style.top = '0';
-  cssRenderer.domElement.style.left = '0';
-  cssRenderer.domElement.style.pointerEvents = 'none';
-  layer.appendChild(cssRenderer.domElement);
+  const cssDom = cssRenderer.domElement;
+  cssDom.style.position = 'absolute';
+  cssDom.style.top = '0';
+  cssDom.style.left = '0';
+  cssDom.style.pointerEvents = 'none';
+  layer.appendChild(cssDom);
 
   const cssScene = new THREE.Scene();
+  // Metre-scale world is mapped into CSS-pixel space by this root scale.
+  const cssRoot = new THREE.Group();
+  cssRoot.scale.setScalar(CSS_SCALE_K);
+  cssScene.add(cssRoot);
+
+  // Clone of the WebGL camera used by CSS3DRenderer (kept in sync every frame).
+  const cssCamera = new THREE.PerspectiveCamera();
 
   // The screen element (real HTML).
   const el = document.createElement('div');
   el.className = 'screen';
-  el.setAttribute('data-active', 'home');
+  el.setAttribute('data-active', INITIAL_APP);
+  el.style.width = S.pageWidth + 'px';
+  el.style.height = S.pageHeight + 'px';
   el.innerHTML =
-    `<div class="bar"><span class="tl r"></span><span class="tl y"></span><span class="tl g"></span>` +
-    `<span class="title">home.sh</span></div>` +
-    `<div class="body">${Object.values(PAGES).map((fn) => fn()).join('')}</div>` +
-    `<div class="wipe" aria-hidden="true"></div>` +
-    `<div class="scan" aria-hidden="true"></div>` +
-    `<div class="glass" aria-hidden="true"></div>`;
-
+    `<div class="inner">` +
+      `<div class="body">${PAGES.home()}` +
+        `${Object.entries(PAGES).filter(([id]) => id !== 'home').map(([id, fn]) => appWindow(id, fn())).join('')}` +
+      `</div>` +
+      `<div class="start-menu" hidden><div class="start-heading">START</div>` +
+        `<button type="button" data-page="whoami">▤ &nbsp; whoami.txt</button>` +
+        `<button type="button" data-page="skills">▤ &nbsp; skills.txt</button>` +
+        `<button type="button" data-page="projects">▤ &nbsp; projects.txt</button>` +
+        `<button type="button" data-page="contact">▤ &nbsp; contact.txt</button>` +
+      `</div>` +
+      `<nav class="taskbar">` +
+        `<button type="button" class="start-button" data-start aria-label="Open Start menu" aria-expanded="false"><span></span><span></span><span></span><span></span></button>` +
+        `<button type="button" class="task-app" data-window-restore><span class="task-app-icon">▤</span><span class="task-app-label">${TITLES[INITIAL_APP]}</span></button>` +
+        `<span class="taskbar-spacer"></span><time class="task-clock"><span class="clock-time"></span><span class="clock-date"></span></time>` +
+      `</nav>` +
+      `<div class="wipe" aria-hidden="true"></div>` +
+      `<div class="scan" aria-hidden="true"></div>` +
+      `<div class="glass" aria-hidden="true"></div>` +
+    `</div>`;
+  el.style.pointerEvents = 'none'; // CSS3DObject enables it; we toggle it by state
   const obj = new CSS3DObject(el);
-  obj.scale.setScalar(S.width / S.pageWidth);
-  applyScreenTransform(obj, S, 0.0006); // DOM sits a hair in front of the hole plane
-  cssScene.add(obj);
+  cssRoot.add(obj);
 
-  // Invisible depth-only plane over the display quad (leaves the monitor mesh
-  // untouched). Keeps WebGL depth correct under the DOM.
+  // Invisible depth-only plane matching the HTML footprint. Rendered first and
+  // slightly in front of the monitor's own display panel, it writes depth so
+  // the panel is not painted there and the transparent canvas reveals the DOM.
   const hole = new THREE.Mesh(
-    new THREE.PlaneGeometry(S.width, S.height),
+    new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({
-      transparent: true, opacity: 0, depthWrite: true, colorWrite: false,
-      blending: THREE.NoBlending, side: THREE.DoubleSide,
+      colorWrite: false, depthWrite: true, depthTest: true,
+      transparent: false, side: THREE.DoubleSide,
     }),
   );
   hole.name = 'screen-hole';
-  hole.renderOrder = 1;
-  applyScreenTransform(hole, S);
+  hole.renderOrder = -1;
   webglScene.add(hole);
 
+  // ---- calibration debug: magenta quad outline + right/up/normal arrows ----
+  const dbg = new THREE.Group();
+  dbg.visible = false;
+  webglScene.add(dbg);
+  const outlineGeo = new THREE.BufferGeometry();
+  outlineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(8), 3));
+  const outline = new THREE.LineLoop(
+    outlineGeo, new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false }),
+  );
+  outline.renderOrder = 999;
+  dbg.add(outline);
+  const arrows = [
+    new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.0001, 0xff4444, 0.0001, 0.0001),
+    new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.0001, 0x44ff44, 0.0001, 0.0001),
+    new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 0.0001, 0x4488ff, 0.0001, 0.0001),
+  ];
+  arrows.forEach((a) => dbg.add(a));
+
+  // ------------------------------------------------------------- apply
+  let current = null;
+  function apply() {
+    const t = computeTransform(S, params, geo);
+    current = t;
+    // CSS3DObject (under cssRoot, with separate inset-derived width/height scales).
+    obj.position.copy(t.center);
+    obj.quaternion.copy(t.quaternion);
+    obj.scale.set(t.scaleX, t.scaleY, t.scaleObj);
+    // Hole matches the HTML footprint exactly.
+    hole.scale.set(t.contentW, t.contentH, 1);
+    hole.position.copy(t.center).addScaledVector(geo.normal, S.holeOffset);
+    hole.quaternion.copy(t.quaternion);
+    // Debug outline + axis arrows.
+    const hw = t.contentW / 2, hh = t.contentH / 2;
+    const pos = outlineGeo.attributes.position;
+    pos.setXYZ(0, -hw, -hh, 0); pos.setXYZ(1, hw, -hh, 0);
+    pos.setXYZ(2, hw, hh, 0); pos.setXYZ(3, -hw, hh, 0);
+    pos.needsUpdate = true;
+    outlineGeo.computeBoundingSphere();
+    dbg.position.copy(t.center);
+    dbg.quaternion.copy(t.quaternion);
+    const L = Math.max(t.contentW, 0.2) * 0.6;
+    const dirs = [
+      new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1),
+    ];
+    arrows.forEach((a, i) => {
+      a.setDirection(dirs[i]);
+      a.setLength(L, L * 0.22, L * 0.12);
+    });
+    onNeedsRender && onNeedsRender();
+  }
+  apply();
+
   // ------------------------------------------------------------- state
-  let active = 'home';
+  let active = INITIAL_APP;
   let switching = false;
   let switchUntil = 0;
+  let onExit = null;
 
   function setActive(id) {
-    if (!PAGES[id] || id === active) return;
+    if (!PAGES[id] || id === 'home') return;
+    const win = el.querySelector(`[data-window="${id}"]`);
+    if (!win) return;
     active = id;
+    el.querySelectorAll('.app-window').forEach((app) => { app.hidden = app !== win; });
+    win.classList.remove('minimized');
+    win.style.zIndex = String(++windowZ);
+    el.querySelector('[data-window-restore]').hidden = false;
+    el.classList.remove('start-open');
+    const startButton = el.querySelector('[data-start]');
+    if (startButton) startButton.setAttribute('aria-expanded', 'false');
     switching = true;
     switchUntil = performance.now() + 360;
     el.setAttribute('data-active', id);
-    const title = el.querySelector('.title');
-    if (title) title.textContent = TITLES[id] || id;
+    el.querySelector('.task-app-label').textContent = TITLES[id] || id;
+    el.querySelectorAll('[data-page]').forEach((b) => b.classList.toggle('active', b.dataset.page === id));
     el.classList.add('switching');
     window.setTimeout(() => el.classList.remove('switching'), 360);
     onNeedsRender && onNeedsRender();
   }
 
-  function setVisible(v) {
-    layer.classList.toggle('visible', !!v);
+  let windowZ = 1;
+  function minimizeWindow(win) {
+    win.hidden = true;
+    win.classList.add('minimized');
+    onNeedsRender && onNeedsRender();
+  }
+  function closeWindow(win) {
+    win.hidden = true;
+    win.classList.remove('minimized', 'is-maximized');
+    if (active === win.dataset.window) {
+      active = 'home';
+      el.setAttribute('data-active', 'home');
+      el.querySelector('[data-window-restore]').hidden = true;
+      el.querySelector('.task-app-label').textContent = '';
+    }
     onNeedsRender && onNeedsRender();
   }
 
+  function setVisible() { /* always visible; kept for API compatibility */ }
+
   function setInteractive(v) {
-    layer.classList.toggle('is-hold', !!v);
+    layer.classList.toggle('is-active', !!v);
+    el.classList.toggle('interactive', !!v);
+    el.style.pointerEvents = v ? 'auto' : 'none';
+    if (!v) el.querySelector('.body').scrollTop = 0;
   }
+
+  // Fade the whole panel 0..1 (used by the camera transition).
+  function setBrightness(v) {
+    const inner = el.querySelector('.inner');
+    if (inner) inner.style.opacity = String(Math.max(0, Math.min(1, v)));
+  }
+
+  function boot() {
+    el.classList.remove('off');
+    el.classList.add('booted');
+    window.setTimeout(() => el.classList.remove('booted'), 620);
+  }
+  function powerOff() {
+    el.classList.add('off');
+    window.setTimeout(() => { el.classList.remove('off'); onNeedsRender && onNeedsRender(); }, 300);
+  }
+
+  // In-screen navigation + exit.
+  el.querySelectorAll('[data-page]').forEach((b) =>
+    b.addEventListener('click', () => setActive(b.dataset.page)));
+  const taskApp = el.querySelector('[data-window-restore]');
+  taskApp.addEventListener('click', () => {
+    const win = el.querySelector(`[data-window="${active}"]`);
+    if (!win) return;
+    if (win.hidden) {
+      win.hidden = false;
+      win.classList.remove('minimized');
+      win.style.zIndex = String(++windowZ);
+    } else {
+      minimizeWindow(win);
+    }
+    onNeedsRender && onNeedsRender();
+  });
+  el.querySelectorAll('.app-window').forEach((win) => {
+    const titlebar = win.querySelector('.app-titlebar');
+    titlebar.addEventListener('pointerdown', (event) => {
+      if (event.target.closest('.window-actions')) return;
+      const rect = win.getBoundingClientRect();
+      const scale = rect.width / win.offsetWidth || 1;
+      const drag = { x: event.clientX, y: event.clientY, left: win.offsetLeft, top: win.offsetTop, scale };
+      titlebar.setPointerCapture(event.pointerId);
+      const move = (e) => {
+        if (!titlebar.hasPointerCapture(e.pointerId)) return;
+        const maxLeft = Math.max(0, el.clientWidth - win.offsetWidth);
+        const maxTop = Math.max(0, el.clientHeight - 48 - win.offsetHeight);
+        win.style.left = `${Math.min(maxLeft, Math.max(0, drag.left + (e.clientX - drag.x) / drag.scale))}px`;
+        win.style.top = `${Math.min(maxTop, Math.max(0, drag.top + (e.clientY - drag.y) / drag.scale))}px`;
+      };
+      const up = (e) => {
+        if (!titlebar.hasPointerCapture(e.pointerId)) return;
+        titlebar.releasePointerCapture(e.pointerId);
+        titlebar.removeEventListener('pointermove', move);
+        titlebar.removeEventListener('pointerup', up);
+      };
+      titlebar.addEventListener('pointermove', move);
+      titlebar.addEventListener('pointerup', up);
+    });
+    win.querySelectorAll('[data-window-action]').forEach((button) => button.addEventListener('click', () => {
+      const action = button.dataset.windowAction;
+      if (action === 'minimize') minimizeWindow(win);
+      if (action === 'maximize') {
+        win.classList.toggle('is-maximized');
+        button.setAttribute('aria-pressed', String(win.classList.contains('is-maximized')));
+      }
+      if (action === 'close') closeWindow(win);
+    }));
+  });
+  const startButton = el.querySelector('[data-start]');
+  const startMenu = el.querySelector('.start-menu');
+  startButton.addEventListener('click', () => {
+    const open = !el.classList.contains('start-open');
+    el.classList.toggle('start-open', open);
+    startButton.setAttribute('aria-expanded', String(open));
+    startMenu.hidden = !open;
+  });
+  const clock = el.querySelector('.task-clock');
+  const updateClock = () => {
+    const now = new Date();
+    clock.querySelector('.clock-time').textContent = now.toLocaleTimeString('id-ID', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+    clock.querySelector('.clock-date').textContent = [
+      String(now.getDate()).padStart(2, '0'),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      now.getFullYear(),
+    ].join('/');
+  };
+  updateClock();
+  window.setInterval(updateClock, 30000);
 
   function update(now) {
     if (switching && now >= switchUntil) { switching = false; el.classList.remove('switching'); }
     return switching;
   }
 
+  // ------------------------------------------------------------- render
   function render() {
-    cssRenderer.render(cssScene, camera);
+    // Keep the CSS camera identical to the WebGL camera this frame (same size,
+    // same object state, same fov), just moved into CSS-pixel space.
+    cssCamera.fov = camera.fov;
+    cssCamera.aspect = camera.aspect;
+    cssCamera.near = camera.near;
+    cssCamera.far = camera.far;
+    cssCamera.updateProjectionMatrix();
+    cssCamera.position.copy(camera.position).multiplyScalar(CSS_SCALE_K);
+    cssCamera.quaternion.copy(camera.quaternion);
+    cssCamera.updateMatrixWorld(true);
+
+    cssRenderer.render(cssScene, cssCamera);
+
+    // Hide the content entirely when the camera is behind the screen plane.
+    if (current) {
+      const toCam = camera.position.clone().sub(current.center).normalize();
+      const facing = geo.normal.dot(toCam);
+      const behind = facing <= 0.001;
+      if (layer.classList.contains('behind') !== behind) layer.classList.toggle('behind', behind);
+    }
   }
 
   function resize(w, h) {
-    cssRenderer.setSize(w, h);
+    cssRenderer.setSize(w || window.innerWidth, h || window.innerHeight);
   }
 
+  // Debug/calibration helper: project a world point to viewport pixels (null
+  // if behind the camera / clipped). Matches the WebGL projection exactly.
+  function project(point) {
+    const v = point.clone().applyMatrix4(camera.matrixWorldInverse);
+    if (v.z >= -0.001) return null;
+    const ndc = v.applyMatrix4(camera.projectionMatrix); // already /w
+    if (!isFinite(ndc.x) || !isFinite(ndc.y)) return null;
+    if (ndc.z > 1 || ndc.z < -1) return null;
+    return { x: (ndc.x * 0.5 + 0.5) * window.innerWidth, y: (-ndc.y * 0.5 + 0.5) * window.innerHeight };
+  }
+
+  // ------------------------------------------------------------- calibration
+  const STEP_OFF = 0.002;   // m
+  const STEP_SCALE = 0.005; // ratio
+  const STEP_ROT = 0.25;    // deg
+  let calibOn = false;
+  let logTimer = 0;
+
+  const box = document.createElement('div');
+  box.id = 'screen-calib';
+  box.hidden = true;
+  box.innerHTML =
+    `<b>SCREEN CALIBRATION</b>` +
+    `<div class="row"><span>offset</span><code data-calib="offset"></code></div>` +
+    `<div class="row"><span>scale</span><code data-calib="scale"></code></div>` +
+    `<div class="row"><span>rotation</span><code data-calib="rotation"></code></div>` +
+    `<div class="row"><span>inset</span><code data-calib="inset"></code></div>` +
+    `<div class="row"><span>quad</span><code data-calib="quad"></code></div>` +
+    `<div class="keys">arrows X/Y &middot; PgUp/PgDn normal &middot; [ ] scale &middot; ` +
+    `J/L yaw &middot; I/K pitch &middot; U/O roll &middot; Shift &times;5 &middot; C close</div>`;
+  document.body.appendChild(box);
+
+  function fmt(n, d = 3) { return Number(n).toFixed(d).replace(/\.?0+$/, '') || '0'; }
+
+  function configBlock() {
+    const t = current;
+    return {
+      offset: params.offset.map((n) => Number(n.toFixed(4))),
+      scale: Number(params.scale.toFixed(4)),
+      rotationOffset: {
+        yaw: Number(params.rotationOffset.yaw.toFixed(3)),
+        pitch: Number(params.rotationOffset.pitch.toFixed(3)),
+        roll: Number(params.rotationOffset.roll.toFixed(3)),
+      },
+      inset: {
+        left: Number(params.inset.left.toFixed(4)),
+        right: Number(params.inset.right.toFixed(4)),
+        top: Number(params.inset.top.toFixed(4)),
+        bottom: Number(params.inset.bottom.toFixed(4)),
+      },
+      _derived: {
+        center: t.center.toArray().map((n) => Number(n.toFixed(5))),
+        right: geo.right.toArray().map((n) => Number(n.toFixed(5))),
+        up: geo.up.toArray().map((n) => Number(n.toFixed(5))),
+        normal: geo.normal.toArray().map((n) => Number(n.toFixed(5))),
+        scaleX: Number(t.scaleX.toFixed(7)),
+        scaleY: Number(t.scaleY.toFixed(7)),
+      },
+    };
+  }
+
+  function updateBox() {
+    const t = current;
+    box.querySelector('[data-calib="offset"]').textContent =
+      `[${params.offset.map((n) => fmt(n, 4)).join(', ')}] (r,u,n)`;
+    box.querySelector('[data-calib="scale"]').textContent =
+      `${fmt(params.scale, 4)}  (x ${fmt(t.scaleX, 6)} / y ${fmt(t.scaleY, 6)} m/px)`;
+    box.querySelector('[data-calib="rotation"]').textContent =
+      `yaw ${fmt(params.rotationOffset.yaw, 2)}  pitch ${fmt(params.rotationOffset.pitch, 2)}  roll ${fmt(params.rotationOffset.roll, 2)}`;
+    box.querySelector('[data-calib="inset"]').textContent =
+      `L ${fmt(params.inset.left, 3)} R ${fmt(params.inset.right, 3)} T ${fmt(params.inset.top, 3)} B ${fmt(params.inset.bottom, 3)}`;
+    box.querySelector('[data-calib="quad"]').textContent =
+      `${fmt(t.contentW, 4)} x ${fmt(t.contentH, 4)} m @ [${t.center.toArray().map((n) => fmt(n, 3)).join(', ')}]`;
+  }
+
+  function logJSON() {
+    window.clearTimeout(logTimer);
+    logTimer = window.setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.log('[screen] paste into CONFIG.screen in js/config.js:\n' + JSON.stringify(configBlock(), null, 2));
+    }, 120);
+  }
+
+  function setCalib(on) {
+    calibOn = !!on;
+    dbg.visible = calibOn;
+    el.classList.toggle('calib', calibOn);
+    box.hidden = !calibOn;
+    if (calibOn) { updateBox(); logJSON(); }
+    onNeedsRender && onNeedsRender();
+  }
+
+  function onKey(e) {
+    if (e.key === 'c' || e.key === 'C') {
+      if (!e.repeat) setCalib(!calibOn);
+      return;
+    }
+    if (!calibOn) return;
+    const m = e.shiftKey ? 5 : 1;
+    let used = true;
+    switch (e.key) {
+      case 'ArrowLeft': params.offset[0] -= STEP_OFF * m; break;
+      case 'ArrowRight': params.offset[0] += STEP_OFF * m; break;
+      case 'ArrowUp': params.offset[1] += STEP_OFF * m; break;
+      case 'ArrowDown': params.offset[1] -= STEP_OFF * m; break;
+      case 'PageUp': params.offset[2] += STEP_OFF * m; break;
+      case 'PageDown': params.offset[2] -= STEP_OFF * m; break;
+      case '[': params.scale = Math.max(0.4, params.scale - STEP_SCALE * m); break;
+      case ']': params.scale = Math.min(1.6, params.scale + STEP_SCALE * m); break;
+      case 'j': case 'J': params.rotationOffset.yaw -= STEP_ROT * m; break;
+      case 'l': case 'L': params.rotationOffset.yaw += STEP_ROT * m; break;
+      case 'i': case 'I': params.rotationOffset.pitch -= STEP_ROT * m; break;
+      case 'k': case 'K': params.rotationOffset.pitch += STEP_ROT * m; break;
+      case 'u': case 'U': params.rotationOffset.roll -= STEP_ROT * m; break;
+      case 'o': case 'O': params.rotationOffset.roll += STEP_ROT * m; break;
+      default: used = false;
+    }
+    if (!used) return;
+    e.preventDefault();
+    apply();
+    updateBox();
+    logJSON();
+  }
+  window.addEventListener('keydown', onKey);
+
   function dispose() {
+    window.removeEventListener('keydown', onKey);
     webglScene.remove(hole);
     hole.geometry.dispose();
     hole.material.dispose();
-    el.remove();
-    cssScene.remove(obj);
-    if (cssRenderer.domElement.parentNode) cssRenderer.domElement.parentNode.removeChild(cssRenderer.domElement);
+    webglScene.remove(dbg);
+    outline.geometry.dispose();
+    outline.material.dispose();
+    arrows.forEach((a) => a.dispose && a.dispose());
+    box.remove();
+    cssRoot.remove(obj);
+    if (cssDom.parentNode) cssDom.parentNode.removeChild(cssDom);
   }
 
+  // Auto-enable calibration with ?debug (screen.js owns this so it works even
+  // if main.js is not the one toggling it).
+  if (new URLSearchParams(location.search).has('debug')) setCalib(true);
+
   return {
-    object3D: obj, element: el, hole,
-    setActive, setVisible, setInteractive, update, render, resize, dispose,
+    element: el, hole, object3D: obj,
+    // World-space quad the DOM overlay is locked to.
+    quad: { center: geo.center, right: geo.right, up: geo.up, normal: geo.normal },
+    setActive, setVisible, setInteractive, boot, powerOff, update, render, resize, dispose, project, setBrightness,
+    setOnExit(fn) { onExit = fn; },
+    // Calibration API.
+    toggleCalibration: () => setCalib(!calibOn),
+    setCalibration: setCalib,
+    get calibrating() { return calibOn; },
+    get params() { return configBlock(); },
     get active() { return active; },
-    get visible() { return layer.classList.contains('visible'); },
-    // debug: expose the derived world transform
-    get transform() {
-      return { position: obj.position.clone(), quaternion: obj.quaternion.clone(), scale: obj.scale.x };
-    },
+    get visible() { return true; },
+    get interactive() { return layer.classList.contains('is-active'); },
   };
 }

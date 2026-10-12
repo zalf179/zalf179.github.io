@@ -26,7 +26,7 @@ export const CONFIG = {
   renderer: {
     antialias: true,
     pixelRatioCap: 1.5,
-    toneMappingExposure: 1.12,
+    toneMappingExposure: 1.05,
     // Transparent canvas lets the CSS room-tone color show through.
     clearColor: 0x05070a,
     clearAlpha: 0,
@@ -37,7 +37,7 @@ export const CONFIG = {
     mapSize: 2048,
     groundingMapSize: 1024,
     groundingColor: 0xffead7,
-    groundingIntensity: 0.35,
+    groundingIntensity: 0.25,
     bias: -0.0005,
     normalBias: 0.02,
     radius: 3,
@@ -53,6 +53,9 @@ export const CONFIG = {
     wallWidth: 30,
     wallHeight: 14,
     wallZ: -2.85,
+    sideWallX: 5,
+    sideWallFrontZ: 12,
+    sideWallDepth: 14.85,
   },
 
   camera: {
@@ -64,18 +67,18 @@ export const CONFIG = {
   // Image-based lighting (PMREM + RoomEnvironment) at low intensity so the
   // PBR materials get soft reflections without washing the dark mood out.
   env: {
-    intensity: 0.72,
+    intensity: 0.58,
   },
 
   // Lights are entirely ours: the glb ships with none. Values are a starting
   // mood ("a lit corner of a dark room").
   lights: {
-    hemi: { sky: 0x9fb4d6, ground: 0x14100c, intensity: 0.3 },
-    key: { color: 0xffe9cf, intensity: 2.0, position: [-2.1, 2.6, 2.2] },
-    fill: { color: 0x9fc2ff, intensity: 0.28, position: [2.4, 1.2, 2.6] },
+    hemi: { sky: 0x9fb4d6, ground: 0x14100c, intensity: 0.2 },
+    key: { color: 0xffe9cf, intensity: 2.4, position: [-2.1, 2.6, 2.2] },
+    fill: { color: 0x9fc2ff, intensity: 0.14, position: [2.4, 1.2, 2.6] },
     // Faint cool rim from behind/above the chair so its silhouette reads
     // against the dark background without lifting the whole scene.
-    rim: { color: 0x88b4ff, intensity: 0.7, position: [0.15, 2.3, 3.0], target: [0.0, 0.95, 0.72] },
+    rim: { color: 0x88b4ff, intensity: 0.5, position: [0.15, 2.3, 3.0], target: [0.0, 0.95, 0.72] },
     // Cool photons spilling off the monitor onto the desk/keyboard.
     screenSpill: { color: 0x63d0ff, intensity: 0.7, distance: 1.6 },
   },
@@ -100,21 +103,39 @@ export const CONFIG = {
     flicker: 0.025,
   },
 
-  // Display quad in WORLD space — hardcoded from the mesh (source of truth).
-  // Monitor_Monitor_0 is a single mesh (frame+stand+display); the display is
-  // its only flat, front-facing 2-triangle panel. These 4 corners were
-  // extracted from that panel:
+  // Display quad in WORLD space. The 4 corners are the SOURCE OF TRUTH:
+  // Monitor_Monitor_0 is a single mesh (frame+stand+display), and these were
+  // extracted from its flat, front-facing 2-triangle panel. The right/up/
+  // normal basis, width and height are DERIVED from the corners at runtime
+  // (see js/screen.js), so editing corners is enough.
   //   bl (0.2919, 1.0316, -0.1265)  br (0.7830, 1.0316,  0.1077)
   //   tr (0.8011, 1.3781,  0.0696)  tl (0.3101, 1.3781, -0.1646)
   screen: {
+    corners: {
+      bl: [0.2919, 1.0316, -0.1265],
+      br: [0.7830, 1.0316, 0.1077],
+      tr: [0.8011, 1.3781, 0.0696],
+      tl: [0.3101, 1.3781, -0.1646],
+    },
+    // Reference values (kept in sync with corners; used by lights/interaction).
     center: [0.5465, 1.2049, -0.0284],
     width: 0.5441,
     height: 0.3491,
     normal: [-0.42729, 0.12097, 0.89597],
     right: [0.90261, 0, 0.43044],
     up: [0.05214, 0.99267, -0.10916],
-    // Invisible depth-only plane pushed this far along the normal (no z-fight).
-    offset: 0.0015,
+    // -------- calibration knobs (applied at startup; see ?debug / C key) ----
+    // Trim this fraction off each side of the full quad so the displayed
+    // content sits inside the glass only (the corners include the bezel).
+    inset: { left: 0.01, right: 0.01, top: 0.02, bottom: 0.04 },
+    // Nudge in world units along [right, up, normal] of the screen plane.
+    offset: [0, 0, 0],
+    // Uniform scale multiplier applied on top of (contentWidth / pageWidth).
+    scale: 1,
+    // Small local tilt of the object in degrees (yaw/pitch/roll).
+    rotationOffset: { yaw: 0, pitch: 0, roll: 0 },
+    // Depth-only "hole" plane pushed this far along the normal (no z-fight).
+    holeOffset: 0.002,
     // CSS3D page resolution — matches the quad's 1.559:1 aspect, no letterbox.
     pageWidth: 1280,
     pageHeight: 821,
@@ -125,7 +146,7 @@ export const CONFIG = {
   environment: {
     fog: { near: 3.2, far: 10.5 },
     // Soft baked contact-shadow blobs that supplement the real-time shadows.
-    contactShadow: { opacity: 0.35, y: 0.003 },
+    contactShadow: { opacity: 0.24, y: 0.003 },
   },
 
   idle: {

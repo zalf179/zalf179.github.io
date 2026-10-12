@@ -23,18 +23,19 @@ export function setupLights(scene, bounds) {
   grounding.target.position.copy(centre);
   scene.add(grounding, grounding.target);
   if (CONFIG.shadows.enabled) {
+    key.castShadow = true;
+    key.shadow.mapSize.set(CONFIG.shadows.groundingMapSize, CONFIG.shadows.groundingMapSize);
+    key.shadow.bias = CONFIG.shadows.bias;
+    key.shadow.normalBias = CONFIG.shadows.normalBias;
+    key.shadow.radius = 2;
+    fitDirectionalShadowCamera(key, bounds, 0.2);
+
     grounding.castShadow = true;
     grounding.shadow.mapSize.set(CONFIG.shadows.groundingMapSize, CONFIG.shadows.groundingMapSize);
-    const size = bounds ? bounds.getSize(new THREE.Vector3()) : new THREE.Vector3(2, 1.5, 2);
-    const radius = size.length() * 0.5 + 0.25;
-    Object.assign(grounding.shadow.camera, {
-      near: 0.1, far: 10,
-      left: -radius, right: radius, top: radius, bottom: -radius,
-    });
     grounding.shadow.bias = CONFIG.shadows.bias;
     grounding.shadow.normalBias = CONFIG.shadows.normalBias;
     grounding.shadow.radius = CONFIG.shadows.radius;
-    grounding.shadow.camera.updateProjectionMatrix();
+    fitDirectionalShadowCamera(grounding, bounds, 0.3);
   }
 
   const fill = new THREE.DirectionalLight(L.fill.color, L.fill.intensity);
@@ -65,6 +66,39 @@ export function setupLights(scene, bounds) {
   const contact = createContactShadows(scene, bounds);
 
   return { hemi, key, grounding, fill, rim, screenSpill, lamp, contact, centre };
+}
+
+function fitDirectionalShadowCamera(light, bounds, padding) {
+  const camera = light.shadow.camera;
+  const box = bounds || new THREE.Box3(
+    new THREE.Vector3(-1, 0, -1),
+    new THREE.Vector3(1, 1.5, 1),
+  );
+  light.updateWorldMatrix(true, false);
+  light.target.updateWorldMatrix(true, false);
+  camera.position.copy(light.getWorldPosition(new THREE.Vector3()));
+  camera.lookAt(light.target.getWorldPosition(new THREE.Vector3()));
+  camera.updateMatrixWorld(true);
+
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  const corner = new THREE.Vector3();
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) {
+        corner.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+        min.min(corner);
+        max.max(corner);
+      }
+    }
+  }
+  camera.left = min.x - padding;
+  camera.right = max.x + padding;
+  camera.bottom = min.y - padding;
+  camera.top = max.y + padding;
+  camera.near = Math.max(0.01, -max.z - padding);
+  camera.far = Math.max(camera.near + 0.1, -min.z + padding);
+  camera.updateProjectionMatrix();
 }
 
 // Derive the shade opening from the upper lamp-head vertices in world space.
