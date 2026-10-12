@@ -27,11 +27,32 @@ export const CONFIG = {
     antialias: true,
     pixelRatioCap: 1.5,
     toneMappingExposure: 1.12,
-    // Transparent canvas: the moody vignette is a CSS radial-gradient behind it.
+    // Transparent canvas lets the CSS room-tone color show through.
     clearColor: 0x05070a,
     clearAlpha: 0,
-    shadows: false,        // real-time shadows OFF by default (clearcoat cost)
-    shadowMapSize: 1024,
+  },
+
+  shadows: {
+    enabled: true,
+    mapSize: 2048,
+    groundingMapSize: 1024,
+    groundingColor: 0xffead7,
+    groundingIntensity: 0.35,
+    bias: -0.0005,
+    normalBias: 0.02,
+    radius: 3,
+  },
+
+  room: {
+    floorColor: 0x241e1a,
+    wallColor: 0x2b3644,
+    backgroundColor: 0x10151c,
+    floorRoughness: 0.9,
+    wallRoughness: 1,
+    floorSize: 40,
+    wallWidth: 30,
+    wallHeight: 14,
+    wallZ: -2.85,
   },
 
   camera: {
@@ -57,7 +78,6 @@ export const CONFIG = {
     rim: { color: 0x88b4ff, intensity: 0.7, position: [0.15, 2.3, 3.0], target: [0.0, 0.95, 0.72] },
     // Cool photons spilling off the monitor onto the desk/keyboard.
     screenSpill: { color: 0x63d0ff, intensity: 0.7, distance: 1.6 },
-    shadowBounds: 3.0,
   },
 
   // Warm desk lamp. head is the lamp head centre; light is the emitter point
@@ -99,9 +119,9 @@ export const CONFIG = {
   },
 
   environment: {
-    fog: { color: 0x05070a, near: 3.2, far: 10.5 },
-    // Baked contact-shadow blobs on the floor (cheap, no shadow maps).
-    contactShadow: { opacity: 0.6, y: -0.028 },
+    fog: { near: 3.2, far: 10.5 },
+    // Soft baked contact-shadow blobs that supplement the real-time shadows.
+    contactShadow: { opacity: 0.35, y: 0.003 },
   },
 
   idle: {

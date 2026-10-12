@@ -5,7 +5,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CONFIG } from './config.js';
 
 // Renderer: SRGB output, ACES tone mapping, capped pixel ratio, transparent
-// canvas so the CSS vignette behind it shows through.
+// canvas so the CSS3D screen can remain visible beneath the WebGL scene.
 export function createRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -16,8 +16,8 @@ export function createRenderer(canvas) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = CONFIG.renderer.toneMappingExposure;
-  renderer.shadowMap.enabled = !!CONFIG.renderer.shadows;
-  if (CONFIG.renderer.shadows) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = CONFIG.shadows.enabled;
+  if (CONFIG.shadows.enabled) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(CONFIG.renderer.clearColor, CONFIG.renderer.clearAlpha);
   return renderer;
 }
@@ -28,14 +28,34 @@ export function createCamera(aspect) {
 
 export function createScene() {
   const scene = new THREE.Scene();
-  scene.background = null; // CSS gradient shows through the alpha canvas
+  scene.background = null; // CSS room-tone color shows through the alpha canvas
   const f = CONFIG.environment.fog;
-  scene.fog = new THREE.Fog(f.color, f.near, f.far);
+  scene.fog = new THREE.Fog(CONFIG.room.backgroundColor, f.near, f.far);
   return scene;
 }
 
 // PMREM + RoomEnvironment: low-intensity IBL for believable PBR reflections.
 export function setupEnvironment(scene, renderer) {
+  const R = CONFIG.room;
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(R.floorSize, R.floorSize),
+    new THREE.MeshStandardMaterial({ color: R.floorColor, roughness: R.floorRoughness }),
+  );
+  floor.name = 'room-floor';
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = 0;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const wall = new THREE.Mesh(
+    new THREE.PlaneGeometry(R.wallWidth, R.wallHeight),
+    new THREE.MeshStandardMaterial({ color: R.wallColor, roughness: R.wallRoughness }),
+  );
+  wall.name = 'room-back-wall';
+  wall.position.set(0, R.wallHeight / 2, R.wallZ);
+  wall.receiveShadow = true;
+  scene.add(wall);
+
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;

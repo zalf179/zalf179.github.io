@@ -6,7 +6,7 @@
    ============================================================ */
 
 :root {
-  --bg: #05070a;
+  --bg: #10151c;
   --accent: #39ff88;
   --accent-dim: rgba(57, 255, 136, 0.35);
   --ink: #dfe2eb;
@@ -31,10 +31,8 @@ body {
   margin: 0;
   color: var(--ink);
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Dark, moody corner-of-a-room vignette behind the transparent canvas. */
-  background:
-    radial-gradient(120% 95% at 50% 42%, #0d141c 0%, #070b11 42%, #04060a 68%, #010203 100%)
-    fixed;
+  /* Matches the fog and wall color at the edges of the transparent scene. */
+  background: var(--bg);
 }
 
 /* ------------------------------------------------------------

@@ -111,6 +111,11 @@ function boot() {
     .then(({ gltf, report }) => {
       const model = gltf.scene || gltf.scenes[0];
       scene.add(model);
+      model.traverse((object) => {
+        if (!object.isMesh) return;
+        object.castShadow = CONFIG.shadows.enabled;
+        object.receiveShadow = CONFIG.shadows.enabled;
+      });
 
       const bounds = measureBounds(model);
       const lights = setupLights(scene, bounds);
@@ -124,6 +129,10 @@ function boot() {
       // CSS3D monitor screen (real HTML on the display quad).
       const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
       app.screen = screen;
+      if (screen.hole) {
+        screen.hole.castShadow = false;
+        screen.hole.receiveShadow = false;
+      }
       screen.setActive('home');
       screen.setVisible(true);
       screen.setInteractive(false);

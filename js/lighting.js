@@ -3,8 +3,8 @@ import { CONFIG } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Lighting rig. The glb ships with no lights, so we build the whole mood:
-// soft IBL fill + warm key + cool screen spill + a warm desk-lamp spot, plus
-// baked contact-shadow blobs on the floor (cheap, no real-time shadow maps).
+// soft IBL fill + warm key + cool screen spill + a warm desk-lamp spot and
+// one soft grounding light, with baked contact shadows as a low-cost fill.
 // ---------------------------------------------------------------------------
 export function setupLights(scene, bounds) {
   const L = CONFIG.lights;
@@ -18,13 +18,23 @@ export function setupLights(scene, bounds) {
   key.position.set(...L.key.position);
   key.target.position.copy(centre);
   scene.add(key, key.target);
-  if (CONFIG.renderer.shadows) {
-    key.castShadow = true;
-    key.shadow.mapSize.set(CONFIG.renderer.shadowMapSize, CONFIG.renderer.shadowMapSize);
-    const b = L.shadowBounds;
-    Object.assign(key.shadow.camera, { near: 0.1, far: 12, left: -b, right: b, top: b, bottom: -b });
-    key.shadow.bias = -0.0006;
-    key.shadow.camera.updateProjectionMatrix();
+  const grounding = new THREE.DirectionalLight(CONFIG.shadows.groundingColor, CONFIG.shadows.groundingIntensity);
+  grounding.position.set(centre.x - 2.2, centre.y + 3.8, centre.z + 2.6);
+  grounding.target.position.copy(centre);
+  scene.add(grounding, grounding.target);
+  if (CONFIG.shadows.enabled) {
+    grounding.castShadow = true;
+    grounding.shadow.mapSize.set(CONFIG.shadows.groundingMapSize, CONFIG.shadows.groundingMapSize);
+    const size = bounds ? bounds.getSize(new THREE.Vector3()) : new THREE.Vector3(2, 1.5, 2);
+    const radius = size.length() * 0.5 + 0.25;
+    Object.assign(grounding.shadow.camera, {
+      near: 0.1, far: 10,
+      left: -radius, right: radius, top: radius, bottom: -radius,
+    });
+    grounding.shadow.bias = CONFIG.shadows.bias;
+    grounding.shadow.normalBias = CONFIG.shadows.normalBias;
+    grounding.shadow.radius = CONFIG.shadows.radius;
+    grounding.shadow.camera.updateProjectionMatrix();
   }
 
   const fill = new THREE.DirectionalLight(L.fill.color, L.fill.intensity);
@@ -49,7 +59,8 @@ export function setupLights(scene, bounds) {
   // Baked contact shadows.
   const contact = createContactShadows(scene, bounds);
 
-  return { hemi, key, fill, rim, screenSpill, lamp, contact, centre };}
+  return { hemi, key, grounding, fill, rim, screenSpill, lamp, contact, centre };
+}
 
 // ---------------------------------------------------------------------------
 // Desk lamp: warm spot + a soft additive glow sprite at the head. Returned so
@@ -65,6 +76,16 @@ export function createLamp(scene) {
 
   const spot = new THREE.SpotLight(P.color, 0, P.distance, 0.72, 0.55, P.decay);
   spot.name = 'lamp-spot';
+  if (CONFIG.shadows.enabled) {
+    spot.castShadow = true;
+    spot.shadow.mapSize.set(CONFIG.shadows.mapSize, CONFIG.shadows.mapSize);
+    spot.shadow.bias = CONFIG.shadows.bias;
+    spot.shadow.normalBias = CONFIG.shadows.normalBias;
+    spot.shadow.radius = CONFIG.shadows.radius;
+    spot.shadow.camera.near = 0.05;
+    spot.shadow.camera.far = P.distance;
+    spot.shadow.camera.updateProjectionMatrix();
+  }
   spot.position.set(0, 0, 0);
   spot.target.position.set(P.target[0] - P.light[0], P.target[1] - P.light[1], P.target[2] - P.light[2]);
   group.add(spot, spot.target);
