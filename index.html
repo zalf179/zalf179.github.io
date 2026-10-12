@@ -20,13 +20,8 @@
     }
   </script>
 
-  <!-- GSAP + ScrollTrigger (pinned) -->
+  <!-- GSAP (pinned) — used only for the camera fly-to tween. -->
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-
-  <!-- Lenis smooth scroll (pinned); wired to ScrollTrigger + gsap.ticker in js/camera-path.js -->
-  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.css">
 
   <!-- Monospace font for the on-screen terminal -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,13 +31,14 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- The whole experience is one fullscreen WebGL scene. No HTML text lives
-       outside the 3D scene — the only DOM overlays are the CSS3D monitor
-       screen (part of the scene), the progress dots, loader and error. -->
+  <!-- The whole experience is one fullscreen WebGL scene you freely orbit and
+       look around. The only DOM overlays are: the CSS3D monitor screen (part
+       of the scene), a tiny hint, a back button (shown only while zoomed into
+       the screen), the loader and the error banner. -->
   <canvas id="scene-canvas"></canvas>
 
   <!-- CSS3DRenderer layer: real HTML locked to the monitor's display quad.
-       Populated by js/screen.js; hidden while the monitor is far away. -->
+       Populated by js/screen.js; hidden while the monitor is far/small. -->
   <div id="css3d-layer" aria-hidden="true"></div>
 
   <!-- Friendly error banner (shown only when the scene cannot render). -->
@@ -59,20 +55,11 @@
     </div>
   </div>
 
-  <!-- The only controls: 5 progress dots. -->
-  <nav id="dots" aria-label="Scroll stops">
-    <button type="button" data-stop="0" aria-label="Intro" title="Intro"></button>
-    <button type="button" data-stop="1" aria-label="Home" title="Home"></button>
-    <button type="button" data-stop="2" aria-label="Skills" title="Skills"></button>
-    <button type="button" data-stop="3" aria-label="Projects" title="Projects"></button>
-    <button type="button" data-stop="4" aria-label="Contact" title="Contact"></button>
-  </nav>
+  <!-- The only extra UI text: a fading hint that fades once you interact. -->
+  <div id="hint" aria-hidden="true">DRAG TO LOOK &middot; <b>CLICK THE COMPUTER</b></div>
 
-  <!-- Tiny scroll hint, fades out after the first scroll. -->
-  <div id="scroll-hint" aria-hidden="true">SCROLL TO EXPLORE</div>
-
-  <!-- Scrollable height: the canvas is pinned; this spacer drives the scrub. -->
-  <div id="spacer" aria-hidden="true"></div>
+  <!-- Fallback exit, only visible while zoomed into the screen. -->
+  <button id="back-btn" type="button" hidden>&larr; BACK</button>
 
   <!-- Accessibility / SEO layer: real text + links, clipped off-screen (not
        display:none). It mirrors the monitor content for crawlers and also

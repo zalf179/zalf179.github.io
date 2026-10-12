@@ -7,14 +7,13 @@ import {
 } from './scene.js';
 import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
-import { createCameraPath } from './camera-path.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
 const loaderFill = document.getElementById('loader-fill');
 const loaderLabel = document.getElementById('loader-label');
 const errorEl = document.getElementById('scene-error');
-const hintEl = document.getElementById('scroll-hint');
+const hintEl = document.getElementById('hint');
 
 export const REDUCED = window.matchMedia
   ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -79,24 +78,24 @@ function boot() {
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, screen: null, path: null, debug: false, markDirty: () => { dirty = true; },
+    lights: null, screen: null, interaction: null, debug: false,
+    markDirty: () => { dirty = true; },
   };
   window.__zally = app;
 
   let dirty = true;
-  let lampLevel = 0;
 
   window.addEventListener('resize', () => {
     resizeRenderer(renderer, camera);
     if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
-    if (app.path) app.path.refresh();
+    if (app.interaction) app.interaction.resize();
     dirty = true;
   });
   window.addEventListener('orientationchange', () => {
     window.setTimeout(() => {
       resizeRenderer(renderer, camera);
       if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
-      if (app.path) app.path.refresh();
+      if (app.interaction) app.interaction.resize();
       dirty = true;
     }, 150);
   });
@@ -119,25 +118,14 @@ function boot() {
       app.bounds = bounds;
       app.meshes = findMeshes(model);
       app.lights = lights;
-      lights.lamp.setOn(0); // driven by camera proximity once the path is up
+      lights.lamp.setOn(1);
 
       // CSS3D monitor screen (real HTML on the display quad).
       const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
       app.screen = screen;
       screen.setActive('home');
-      screen.setVisible(false);
-
-      // Scroll-driven camera path (Lenis + ScrollTrigger, damped, 5 stops).
-      const params = new URLSearchParams(location.search);
-      const path = createCameraPath({
-        camera, webglScene: scene, reduced: REDUCED,
-        onStop: (idx, stop) => {
-          if (stop && stop.page) screen.setActive(stop.page);
-        },
-      });
-      app.path = path;
-      app.debug = params.has('debug');
-      if (app.debug) path.enableDebug();
+      screen.setVisible(true);
+      screen.setInteractive(false);
 
       console.log(
         `[scene] loaded · ${report.textures} textures` +
@@ -148,6 +136,7 @@ function boot() {
       fadeLoader();
       dirty = true;
 
+      const params = new URLSearchParams(location.search);
       if (params.has('debug')) enableDebugInfo();
     })
     .catch((err) => {
@@ -155,10 +144,15 @@ function boot() {
       showError('The 3D scene could not be loaded. The full portfolio is shown as plain text instead.');
     });
 
-  // Hide the scroll hint after the first scroll.
+  // Fade the hint out after the first interaction.
   if (hintEl) {
-    const onFirstScroll = () => { hintEl.classList.add('hidden'); window.removeEventListener('scroll', onFirstScroll); };
-    window.addEventListener('scroll', onFirstScroll, { passive: true });
+    const hideHint = () => {
+      hintEl.classList.add('hidden');
+      window.removeEventListener('pointerdown', hideHint);
+      window.removeEventListener('wheel', hideHint);
+    };
+    window.addEventListener('pointerdown', hideHint, { passive: true });
+    window.addEventListener('wheel', hideHint, { passive: true });
   }
 
   // ------------------------------------------------------------ debug
@@ -218,21 +212,6 @@ function boot() {
 
     if (orbit) { orbit.update(); dirty = true; }
 
-    if (app.path) { if (app.path.update(now)) dirty = true; }
-
-    // Drive screen visibility + the desk lamp from the current stop.
-    if (app.path && app.screen) {
-      const idx = app.path.activeIdx;
-      app.screen.setVisible(idx >= 1);
-      app.screen.setInteractive(idx >= 1 && app.path.holding);
-      const target = idx >= 1 ? 1 : 0;
-      if (Math.abs(target - lampLevel) > 1e-3) {
-        lampLevel += (target - lampLevel) * 0.08;
-        if (app.lights) app.lights.lamp.setOn(lampLevel);
-        dirty = true;
-      }
-    }
-
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
     if (dirty) {
@@ -251,8 +230,6 @@ function boot() {
     }
   }
 
-  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-  window.scrollTo(0, 0);
   loop();
 }
 

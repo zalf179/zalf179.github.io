@@ -1,7 +1,7 @@
 /* ============================================================
-   zalf179 — pure 3D portfolio
+   zalf179 — pure 3D portfolio (free-look, click-to-focus)
    Body DOM is only: canvas, CSS3D monitor layer, loader, error,
-   5 progress dots, scroll hint, spacer, hidden a11y layer.
+   a hint, a back button and the hidden a11y layer.
    All portfolio text lives ON the 3D monitor screen.
    ============================================================ */
 
@@ -15,18 +15,22 @@
 
 * { box-sizing: border-box; }
 
+html, body {
+  /* No scrolling anywhere: the scene is a fixed fullscreen canvas. */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 html {
   background: var(--bg);
-  scroll-behavior: auto; /* GSAP/ScrollTrigger owns smoothing */
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
   color: var(--ink);
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  overflow-x: hidden;
   /* Dark, moody corner-of-a-room vignette behind the transparent canvas. */
   background:
     radial-gradient(120% 95% at 50% 42%, #0d141c 0%, #070b11 42%, #04060a 68%, #010203 100%)
@@ -43,7 +47,7 @@ body {
   height: 100%;
   display: block;
   z-index: 0;
-  touch-action: pan-y;
+  touch-action: none;
   outline: none;
 }
 
@@ -51,22 +55,13 @@ body {
   position: fixed;
   inset: 0;
   z-index: 1;
-  pointer-events: none;
+  pointer-events: none;   /* only in SCREEN_ACTIVE does .is-active enable it */
   overflow: hidden;
-  visibility: hidden; /* shown only when the monitor is near/in frame */
+  visibility: hidden;     /* shown only when the monitor is large enough */
 }
 #css3d-layer.visible { visibility: visible; }
-#css3d-layer.is-hold { pointer-events: none; }
-/* Interactive only while the camera holds at the monitor. */
-#css3d-layer.is-hold .screen { pointer-events: auto; }
-
-/* Scroll height that drives the scrubbed camera timeline. */
-#spacer {
-  position: relative;
-  width: 100%;
-  height: 500vh;
-  pointer-events: none;
-}
+#css3d-layer.is-active { pointer-events: none; }
+#css3d-layer.is-active .screen { pointer-events: auto; }
 
 /* ------------------------------------------------------------
    Loading indicator
@@ -132,61 +127,49 @@ body {
 #scene-error[hidden] { display: none; }
 
 /* ------------------------------------------------------------
-   Progress dots (the only nav)
+   Hint (the only extra UI text) + fallback back button
    ------------------------------------------------------------ */
-#dots {
-  position: fixed;
-  right: max(0.9rem, env(safe-area-inset-right));
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-#dots button {
-  width: 11px;
-  height: 11px;
-  padding: 0;
-  border-radius: 999px;
-  background: rgba(143, 163, 154, 0.22);
-  border: 1px solid rgba(143, 163, 154, 0.6);
-  cursor: pointer;
-  transition: transform 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
-}
-#dots button:hover { background: rgba(57, 255, 136, 0.4); }
-#dots button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 0 10px var(--accent-dim);
-  transform: scale(1.3);
-}
-#dots button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-/* ------------------------------------------------------------
-   Scroll hint
-   ------------------------------------------------------------ */
-#scroll-hint {
+#hint {
   position: fixed;
   left: 50%;
   bottom: max(1.2rem, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 40;
-  font-size: 10px;
-  letter-spacing: 0.28em;
+  font-size: 11px;
+  letter-spacing: 0.22em;
   color: var(--muted);
   pointer-events: none;
-  transition: opacity 0.5s ease;
-  animation: hint-bob 2.4s ease-in-out infinite;
+  opacity: 0.75;
+  transition: opacity 0.6s ease;
+  animation: hint-bob 2.6s ease-in-out infinite;
 }
-#scroll-hint.hidden { opacity: 0; }
+#hint b { color: var(--accent); font-weight: 700; }
+#hint.hidden { opacity: 0; }
 @keyframes hint-bob {
-  0%, 100% { transform: translate(-50%, 0); opacity: 0.55; }
+  0%, 100% { transform: translate(-50%, 0); opacity: 0.5; }
   50% { transform: translate(-50%, 5px); opacity: 0.95; }
 }
+
+#back-btn {
+  position: fixed;
+  left: max(1rem, env(safe-area-inset-left));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 45;
+  padding: 0.7rem 1.1rem;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background: rgba(6, 12, 10, 0.82);
+  border: 1px solid var(--accent-dim);
+  border-radius: 6px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+#back-btn:hover { background: rgba(57, 255, 136, 0.12); box-shadow: 0 0 18px var(--accent-dim); }
+#back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#back-btn[hidden] { display: none; }
 @keyframes blink { 50% { opacity: 0; } }
 
 /* ------------------------------------------------------------
@@ -210,9 +193,8 @@ body {
 /* Static fallback when WebGL is unavailable / load fails: reveal content. */
 body.no-webgl #scene-canvas,
 body.no-webgl #css3d-layer,
-body.no-webgl #dots,
-body.no-webgl #scroll-hint,
-body.no-webgl #spacer { display: none; }
+body.no-webgl #hint,
+body.no-webgl #back-btn { display: none; }
 body.no-webgl #a11y {
   position: static;
   width: auto;
@@ -247,7 +229,7 @@ body.no-webgl #a11y a { color: var(--accent); }
    Reduced motion
    ------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
-  #scroll-hint { animation: none; }
+  #hint { animation: none; }
   .loader-logo { animation: none; }
 }
 
