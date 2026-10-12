@@ -85,6 +85,7 @@ export const CONFIG = {
   lamp: {
     emitter: [0, 0, 0],
     aim: [0, 0, 0],
+    emitterForward: 0.035,
     fallbackEmitter: [0.011, 1.3, -0.041],
     fallbackAim: [0.16, 0.974, 0.02],
     color: 0xffd9a0,
@@ -94,7 +95,7 @@ export const CONFIG = {
     penumbra: 0.6,
     decay: 2.0,
     glowSize: 0.06,
-    glowOpacity: 0.14,
+    glowOpacity: 0.28,
     glowColor: 0xffd9a0,
     flicker: 0.025,
   },

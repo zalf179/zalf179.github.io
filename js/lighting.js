@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { SpotLightHelper } from 'three/addons/helpers/SpotLightHelper.js';
 import { CONFIG } from './config.js';
 
 // ---------------------------------------------------------------------------
@@ -89,14 +88,18 @@ function findLampOpening(scene) {
   const span = maxY - minY;
   if (span < 0.01) return null;
 
-  const openingBand = minY + Math.max(0.008, span * 0.1);
-  const upperBand = minY + span * 0.55;
+  // The shade mouth is a thin ring around 20% up from this mesh subset's
+  // lowest vertex. Averaging every lower vertex also included the lamp arm,
+  // pulling the emitter off the opening and reversing its horizontal aim.
+  const openingY = minY + span * 0.2;
+  const openingHalfBand = Math.max(0.003, span * 0.04);
+  const upperBand = minY + span * 0.65;
   const opening = new THREE.Vector3();
   const upper = new THREE.Vector3();
   let openingCount = 0;
   let upperCount = 0;
   for (const p of points) {
-    if (p.y <= openingBand) { opening.add(p); openingCount++; }
+    if (Math.abs(p.y - openingY) <= openingHalfBand) { opening.add(p); openingCount++; }
     if (p.y >= upperBand) { upper.add(p); upperCount++; }
   }
   if (!openingCount || !upperCount) return null;
@@ -117,10 +120,13 @@ export function createLamp(scene) {
   const detected = findLampOpening(scene);
   const fallbackEmitter = new THREE.Vector3(...P.fallbackEmitter);
   const fallbackAim = new THREE.Vector3(...P.fallbackAim);
-  const emitter = (detected ? detected.center : fallbackEmitter).add(new THREE.Vector3(...P.emitter));
+  const opening = detected ? detected.center : fallbackEmitter;
   const axis = detected
     ? detected.axis
     : fallbackAim.sub(fallbackEmitter).normalize();
+  const emitter = opening.clone()
+    .addScaledVector(axis, P.emitterForward)
+    .add(new THREE.Vector3(...P.emitter));
   const aim = emitter.clone()
     .addScaledVector(axis, P.distance * 0.72)
     .add(new THREE.Vector3(...P.aim));
@@ -157,7 +163,7 @@ export function createLamp(scene) {
   }));
   glow.name = 'lamp-opening-glow';
   glow.scale.setScalar(P.glowSize);
-  glow.position.copy(emitter).addScaledVector(axis, 0.008);
+  glow.position.copy(opening).addScaledVector(axis, 0.008);
   scene.add(glow);
 
   const target = { spot: P.intensity, glow: P.glowOpacity };
@@ -172,12 +178,13 @@ export function createLamp(scene) {
   let spotHelper = null;
   let axisHelper = null;
   if (new URLSearchParams(location.search).has('debug')) {
-    spotHelper = new SpotLightHelper(spot, P.glowColor);
-    axisHelper = new THREE.ArrowHelper(axis.clone(), emitter.clone(), 0.45, P.glowColor);
+    spotHelper = new THREE.SpotLightHelper(spot, P.glowColor);
+    axisHelper = new THREE.ArrowHelper(axis.clone(), opening.clone(), 0.45, P.glowColor);
     scene.add(spotHelper, axisHelper);
     spotHelper.update();
     console.log(
-      `[lamp] opening ${emitter.toArray().map((v) => v.toFixed(3)).join(', ')}` +
+      `[lamp] opening ${opening.toArray().map((v) => v.toFixed(3)).join(', ')}` +
+      ` · spot ${emitter.toArray().map((v) => v.toFixed(3)).join(', ')}` +
       ` · axis ${axis.toArray().map((v) => v.toFixed(3)).join(', ')}` +
       (detected ? '' : ' · using configured fallback'),
     );
