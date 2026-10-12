@@ -250,3 +250,166 @@ body.no-webgl #a11y a { color: var(--accent); }
   #scroll-hint { animation: none; }
   .loader-logo { animation: none; }
 }
+
+/* ============================================================
+   CSS3D monitor screen — real HTML locked to the display quad.
+   Virtual canvas is 1280 x 821 (the quad's 1.559:1 aspect).
+   ============================================================ */
+#css3d-layer .screen {
+  width: 1280px;
+  height: 821px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #06090d;
+  color: #c9f5d6;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 24px;
+  line-height: 1.45;
+  user-select: none;
+  box-shadow:
+    inset 0 0 140px rgba(0, 0, 0, 0.9),
+    inset 0 0 24px rgba(0, 0, 0, 0.8),
+    0 0 60px rgba(57, 255, 136, 0.06);
+}
+
+#css3d-layer .screen .bar {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 0 22px;
+  background: linear-gradient(#0b1218, #070c11);
+  border-bottom: 1px solid #16232c;
+}
+#css3d-layer .screen .tl { width: 13px; height: 13px; border-radius: 999px; margin-right: 10px; }
+#css3d-layer .screen .tl.r { background: #ff6b6b; }
+#css3d-layer .screen .tl.y { background: #ffd479; }
+#css3d-layer .screen .tl.g { background: #39ff88; }
+#css3d-layer .screen .title { margin-left: 18px; font-size: 21px; letter-spacing: 0.04em; color: #4b6b5a; }
+
+#css3d-layer .screen .body {
+  position: absolute;
+  top: 46px; left: 0; right: 0; bottom: 0;
+  padding: 30px 56px 40px;
+  overflow: hidden;
+}
+#css3d-layer .screen .body::after {
+  content: '\2588';
+  color: #39ff88;
+  margin-left: 4px;
+  animation: blink 1.06s step-end infinite;
+}
+
+#css3d-layer .screen .page { display: none; }
+#css3d-layer .screen[data-active="home"] .page-home,
+#css3d-layer .screen[data-active="skills"] .page-skills,
+#css3d-layer .screen[data-active="projects"] .page-projects,
+#css3d-layer .screen[data-active="contact"] .page-contact { display: block; }
+
+#css3d-layer .screen .line { margin: 0 0 6px; }
+#css3d-layer .screen .ps1 { color: #39ff88; font-weight: 700; }
+#css3d-layer .screen .cmd { color: #c9f5d6; }
+#css3d-layer .screen .name {
+  font-size: 56px; font-weight: 700; color: #7ee787;
+  margin: 8px 0 18px; letter-spacing: 0.01em;
+  text-shadow: 0 0 20px rgba(57, 255, 136, 0.28);
+}
+#css3d-layer .screen .role { font-size: 34px; margin: 6px 0 2px; color: #c9f5d6; }
+#css3d-layer .screen .dim { color: #5f7a6b; }
+#css3d-layer .screen .comment { color: #4b6b5a; }
+#css3d-layer .screen .warn { color: #ffd479; }
+#css3d-layer .screen .note { color: #4b6b5a; margin: 4px 0; }
+
+#css3d-layer .screen .links { margin: 10px 0 6px; }
+#css3d-layer .screen a {
+  color: #66b8ff; text-decoration: none;
+  border-bottom: 1px solid rgba(102, 184, 255, 0.35);
+  transition: color 0.15s ease, border-color 0.15s ease, text-shadow 0.15s ease;
+}
+#css3d-layer .screen a:hover {
+  color: #9fe0ff; border-bottom-color: #9fe0ff;
+  text-shadow: 0 0 12px rgba(102, 184, 255, 0.5);
+}
+#css3d-layer .screen .links a { margin-right: 30px; }
+
+#css3d-layer .screen .sect { margin-top: 16px; }
+#css3d-layer .screen .h { color: #39ff88; font-weight: 700; font-size: 29px; margin-bottom: 4px; }
+#css3d-layer .screen .kv {
+  display: grid; grid-template-columns: 220px 1fr;
+  font-size: 23px; margin: 2px 0;
+}
+#css3d-layer .screen .kv b { color: #7ee787; font-weight: 700; }
+#css3d-layer .screen .kv span { color: #5f7a6b; }
+
+#css3d-layer .screen .proj { margin-top: 14px; }
+#css3d-layer .screen .proj .pt { font-size: 25px; color: #c9f5d6; }
+#css3d-layer .screen .proj .n { color: #39ff88; font-weight: 700; margin-right: 6px; }
+#css3d-layer .screen .proj p { color: #5f7a6b; font-size: 22px; margin: 2px 0; }
+#css3d-layer .screen .proj .pl { font-size: 22px; }
+#css3d-layer .screen .proj .pl a { margin-right: 20px; }
+
+#css3d-layer .screen .rows { margin: 18px 0 6px; }
+#css3d-layer .screen .row {
+  display: grid; grid-template-columns: 56px 180px 1fr;
+  font-size: 26px; margin: 6px 0; align-items: baseline;
+}
+#css3d-layer .screen .row b { color: #c9f5d6; font-weight: 700; }
+#css3d-layer .screen .plus { color: #39ff88; font-weight: 700; }
+#css3d-layer .screen .cta {
+  font-size: 40px; font-weight: 700; color: #7ee787; margin: 16px 0 6px;
+  text-shadow: 0 0 18px rgba(57, 255, 136, 0.25);
+}
+#css3d-layer .screen .status { color: #39ff88; font-size: 22px; }
+#css3d-layer .screen .status .dot { margin-right: 6px; }
+#css3d-layer .screen .credit {
+  margin-top: 16px; padding-top: 10px;
+  border-top: 1px solid #16232c;
+  font-size: 16px; line-height: 1.4; color: #3f5a4c;
+  word-break: break-word;
+}
+#css3d-layer .screen .credit.placeholder { color: #4f6b5a; }
+
+/* scanlines + glass glow (cheap, GPU-friendly) */
+#css3d-layer .screen .scan {
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.22) 3px
+  );
+  opacity: 0.55;
+}
+#css3d-layer .screen .glass {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(120, 255, 180, 0.07), transparent 55%),
+    radial-gradient(130% 130% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.6) 100%);
+}
+
+/* transition wipe */
+#css3d-layer .screen .wipe {
+  position: absolute; top: 0; bottom: 0; left: -30%; width: 30%;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(57, 255, 136, 0.22), transparent);
+}
+#css3d-layer .screen.switching .wipe { animation: screen-wipe 0.36s ease-out; }
+#css3d-layer .screen.switching .body { animation: screen-glitch 0.36s steps(2, end); }
+@keyframes screen-wipe {
+  0% { left: -30%; opacity: 0; }
+  25% { opacity: 1; }
+  100% { left: 130%; opacity: 0; }
+}
+@keyframes screen-glitch {
+  0% { transform: translateX(0); opacity: 1; }
+  25% { transform: translateX(-3px); opacity: 0.85; }
+  50% { transform: translateX(2px); opacity: 1; }
+  75% { transform: translateX(-1px); opacity: 0.9; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #css3d-layer .screen .body::after { animation: none; }
+  #css3d-layer .screen.switching .wipe,
+  #css3d-layer .screen.switching .body { animation: none; }
+}

@@ -6,6 +6,7 @@ import {
   findMeshes, verifyScreenQuad,
 } from './scene.js';
 import { setupLights } from './lighting.js';
+import { createScreen } from './screen.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -77,15 +78,23 @@ function boot() {
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, debug: false, markDirty: () => { dirty = true; },
+    lights: null, screen: null, debug: false, markDirty: () => { dirty = true; },
   };
   window.__zally = app;
 
   let dirty = true;
 
-  window.addEventListener('resize', () => { resizeRenderer(renderer, camera); dirty = true; });
+  window.addEventListener('resize', () => {
+    resizeRenderer(renderer, camera);
+    if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+    dirty = true;
+  });
   window.addEventListener('orientationchange', () => {
-    window.setTimeout(() => { resizeRenderer(renderer, camera); dirty = true; }, 150);
+    window.setTimeout(() => {
+      resizeRenderer(renderer, camera);
+      if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+      dirty = true;
+    }, 150);
   });
 
   const manager = new THREE.LoadingManager();
@@ -107,6 +116,13 @@ function boot() {
       app.meshes = findMeshes(model);
       app.lights = lights;
       lights.lamp.setOn(1); // stage 4 drives this from camera proximity
+
+      // CSS3D monitor screen (real HTML on the display quad).
+      const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
+      app.screen = screen;
+      screen.setActive('home');
+      screen.setVisible(true);
+      screen.setInteractive(true);
 
       console.log(
         `[scene] loaded · ${report.textures} textures` +
@@ -188,8 +204,11 @@ function boot() {
 
     if (orbit) { orbit.update(); dirty = true; }
 
+    if (app.screen) { if (app.screen.update(now)) dirty = true; }
+
     if (dirty) {
       renderer.render(scene, camera);
+      if (app.screen && app.screen.visible) app.screen.render();
       dirty = false;
     }
 

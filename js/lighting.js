@@ -31,6 +31,12 @@ export function setupLights(scene, bounds) {
   fill.position.set(...L.fill.position);
   scene.add(fill);
 
+  // Cool rim from behind/above the chair — reads the silhouette edges.
+  const rim = new THREE.DirectionalLight(L.rim.color, L.rim.intensity);
+  rim.position.set(...L.rim.position);
+  rim.target.position.set(...L.rim.target);
+  scene.add(rim, rim.target);
+
   // Cool light bleeding off the monitor onto the desk/keyboard.
   const s = CONFIG.screen;
   const screenSpill = new THREE.PointLight(L.screenSpill.color, L.screenSpill.intensity, L.screenSpill.distance, 2);
@@ -43,8 +49,7 @@ export function setupLights(scene, bounds) {
   // Baked contact shadows.
   const contact = createContactShadows(scene, bounds);
 
-  return { hemi, key, fill, screenSpill, lamp, contact, centre };
-}
+  return { hemi, key, fill, rim, screenSpill, lamp, contact, centre };}
 
 // ---------------------------------------------------------------------------
 // Desk lamp: warm spot + a soft additive glow sprite at the head. Returned so

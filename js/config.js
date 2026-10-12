@@ -10,6 +10,13 @@
 // The desk surface sits at y ~= 0.974 and the user/chair is at +Z,
 // so the monitor faces -X/+Z (toward the seat).
 
+// >>> CREDIT_TEXT placeholder — replace with Sketchfab "Copy Credits" text. <<<
+export const CREDIT_TEXT =
+  'This work is based on "Computer Desk" ' +
+  '(https://sketchfab.com/3d-models/computer-desk-ff0674f66e11462e8b3417dee2b58ac9) ' +
+  'by CR!STALLL (https://sketchfab.com/CR1STALLL) licensed under CC-BY-4.0 ' +
+  '(http://creativecommons.org/licenses/by/4.0/). Model optimized/compressed by me.';
+
 export const CONFIG = {
   assets: {
     // Repo-root file; relative path so it works on the github.io subpath.
@@ -36,7 +43,7 @@ export const CONFIG = {
   // Image-based lighting (PMREM + RoomEnvironment) at low intensity so the
   // PBR materials get soft reflections without washing the dark mood out.
   env: {
-    intensity: 0.55,
+    intensity: 0.72,
   },
 
   // Lights are entirely ours: the glb ships with none. Values are a starting
@@ -45,6 +52,9 @@ export const CONFIG = {
     hemi: { sky: 0x9fb4d6, ground: 0x14100c, intensity: 0.3 },
     key: { color: 0xffe9cf, intensity: 2.0, position: [-2.1, 2.6, 2.2] },
     fill: { color: 0x9fc2ff, intensity: 0.28, position: [2.4, 1.2, 2.6] },
+    // Faint cool rim from behind/above the chair so its silhouette reads
+    // against the dark background without lifting the whole scene.
+    rim: { color: 0x88b4ff, intensity: 0.7, position: [0.15, 2.3, 3.0], target: [0.0, 0.95, 0.72] },
     // Cool photons spilling off the monitor onto the desk/keyboard.
     screenSpill: { color: 0x63d0ff, intensity: 0.7, distance: 1.6 },
     shadowBounds: 3.0,
@@ -100,6 +110,16 @@ export const CONFIG = {
     chairSwayDeg: 2.4,
     chairSwaySpeed: 0.32,
     dustCount: 90,
+  },
+
+  // ---------------------------------------------------------------
+  // 3D model credit shown on the CONTACT screen.
+  // >>> CREDIT_TEXT: replace the string below with the exact text from
+  //     Sketchfab's "Copy Credits" for the "Computer Desk" model.
+  // ---------------------------------------------------------------
+  credit: {
+    placeholder: true,
+    text: CREDIT_TEXT,
   },
 
   // Below this viewport width we use the portrait waypoints.
