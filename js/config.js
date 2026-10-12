@@ -146,12 +146,20 @@ export const CONFIG = {
 
   // ---------------- click the computer -> fly to the screen ----------------
   flyTo: {
-    duration: 1.4,              // seconds
-    arcHeight: 0.22,            // mid-path lift (world units) for a curved move
-    screenFill: 0.8,            // target: screen height as fraction of viewport height
-    fov: 34,                    // narrower fov when focused on the screen
-    hoverBoost: 0.5,            // extra emissive/glow while hovering the monitor
-    clickSlopPx: 5,             // pointer travel beyond this cancels a click
+    // Flight profile: a single eased progress drives position, rotation and
+    // fov together (quadratic Bezier path for position, quaternion slerp for
+    // rotation). duration = fly-in, exitDuration = fly-out.
+    duration: 2.0,          // seconds, fly-in
+    exitDuration: 1.3,      // seconds, fly-out / Esc-reverse
+    // Bezier control point offsets from the path mid-point: pullBack backs the
+    // curve away from the screen (-normal), lift lifts it above the desk.
+    arcPullBack: 0.25,      // m
+    arcLift: 0.2,           // m
+    fovPullBack: 5,         // extra degrees of fov at mid-travel (arrival)
+    screenFill: 0.8,        // target: screen height as fraction of viewport height
+    fov: 34,                // narrower fov when focused on the screen
+    hoverBoost: 0.5,        // extra emissive/glow while hovering the monitor
+    clickSlopPx: 5,         // pointer travel beyond this cancels a click
   },
   idleSway: {
     lampFlicker: 0.05,          // fraction of desk-lamp intensity that wobbles

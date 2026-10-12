@@ -8,6 +8,7 @@ import {
 import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
 import { createControls } from './controls.js';
+import { createInteraction } from './interaction.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -133,6 +134,12 @@ function boot() {
         onChange: () => { dirty = true; },
       });
 
+      // Hover / click the computer -> fly to the screen; interactive screen.
+      app.interaction = createInteraction({
+        canvas, camera, scene, screen, controls: app.controls, lights, meshes: app.meshes,
+        reduced: REDUCED, onNeedsRender: () => { dirty = true; },
+      });
+
       console.log(
         `[scene] loaded · ${report.textures} textures` +
         (report.lowRes.length ? ` · low-res: ${report.lowRes.map(t => `${t.mesh}/${t.name} ${t.w}x${t.h}`).join(', ')}` : ''),
@@ -209,11 +216,15 @@ function boot() {
 
     if (app.controls) { if (app.controls.update(now)) dirty = true; }
 
+    if (app.interaction) { if (app.interaction.update(now)) dirty = true; }
+
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
     if (dirty) {
       renderer.render(scene, camera);
-      if (app.screen && app.screen.visible) app.screen.render();
+      // CSS camera updated in the SAME frame as the WebGL one, so the DOM
+      // stays locked to the canvas during fly-to and resize.
+      if (app.screen) app.screen.render();
       dirty = false;
     }
 
