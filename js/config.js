@@ -173,6 +173,13 @@ export const CONFIG = {
 
   environment: {
     fog: { near: 20, far: 70 },
+    treeHeight: 5,
+    treeCount: 12,
+    treeSeed: 482731,
+    treeRadiusMin: 6,
+    treeRadiusMax: 18,
+    treeClearRadius: 5,
+    treeMinSeparation: 3,
     // Soft baked contact-shadow blobs that supplement the real-time shadows.
     contactShadow: { opacity: 0.24, y: 0.003 },
   },

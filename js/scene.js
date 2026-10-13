@@ -81,6 +81,7 @@ export async function loadFieldModels(manager) {
 
 export function setupFieldModels(scene, { grassAsset, treeAsset }) {
   const F = CONFIG.field;
+  const E = CONFIG.environment;
   const patches = F.grassPatches;
   const grassRoot = grassAsset.scene;
   grassRoot.updateMatrixWorld(true);
@@ -146,24 +147,106 @@ export function setupFieldModels(scene, { grassAsset, treeAsset }) {
 
   const mixers = [];
   const treeTemplate = treeAsset.scene;
+  treeTemplate.updateWorldMatrix(true, true);
+  const boxRecord = (box) => ({
+    size: box.getSize(new THREE.Vector3()).toArray(),
+    min: box.min.toArray(),
+    max: box.max.toArray(),
+  });
+  const treeBeforeBox = new THREE.Box3().setFromObject(treeTemplate);
+  const treeBefore = boxRecord(treeBeforeBox);
+  const barkMeshes = [];
+  const foliageMeshes = [];
+  const treeDebug = new URLSearchParams(location.search).has('debug');
   treeTemplate.traverse((object) => {
     if (!object.isMesh) return;
     const geometry = object.geometry;
     const indexCount = geometry.index ? geometry.index.count : geometry.attributes.position.count;
     treeTrianglesPerModel += Math.floor(indexCount / 3);
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    const materialNames = materials.map((material) => material?.name || '').join(' ');
+    if (/bark|trunk/i.test(`${object.name} ${materialNames}`)) barkMeshes.push(object);
+    if (/leaf|leaves|branch/i.test(`${object.name} ${materialNames}`)) foliageMeshes.push(object);
   });
-  for (const [x, z] of F.trees.placements) {
-    const tree = treeTemplate.clone(true);
-    tree.name = 'field-tree';
-    tree.rotation.z = -Math.PI / 2; // The source tree grows along local -X.
-    tree.scale.setScalar(F.trees.scale);
-    tree.position.set(x, 0.17, z);
+  const longestAxis = treeBeforeBox.getSize(new THREE.Vector3()).toArray()
+    .reduce((best, value, axis, size) => value > size[best] ? axis : best, 0);
+  const axisNames = ['x', 'y', 'z'];
+  const barkBox = new THREE.Box3();
+  barkMeshes.forEach((mesh) => barkBox.union(new THREE.Box3().setFromObject(mesh)));
+  const foliageBox = new THREE.Box3();
+  foliageMeshes.forEach((mesh) => foliageBox.union(new THREE.Box3().setFromObject(mesh)));
+  const barkCenter = barkBox.isEmpty() ? treeBeforeBox.getCenter(new THREE.Vector3()) : barkBox.getCenter(new THREE.Vector3());
+  const foliageCenter = foliageBox.isEmpty() ? treeBeforeBox.getCenter(new THREE.Vector3()) : foliageBox.getCenter(new THREE.Vector3());
+  const axis = new THREE.Vector3(longestAxis === 0 ? 1 : 0, longestAxis === 1 ? 1 : 0, longestAxis === 2 ? 1 : 0);
+  const foliageDelta = foliageCenter.getComponent(longestAxis) - barkCenter.getComponent(longestAxis);
+  const growthSign = Math.abs(foliageDelta) > treeBeforeBox.getSize(new THREE.Vector3()).getComponent(longestAxis) * 0.01
+    ? Math.sign(foliageDelta)
+    : 1;
+  const growthAxis = axis.multiplyScalar(growthSign);
+  const normalizeRotation = new THREE.Quaternion().setFromUnitVectors(growthAxis, new THREE.Vector3(0, 1, 0));
+
+  // Locate the trunk end opposite the foliage, then rotate and ground the full
+  // model around that point. The same normalized transform is cloned per tree.
+  const trunkBase = barkBox.isEmpty() ? treeBeforeBox.getCenter(new THREE.Vector3()) : barkBox.getCenter(new THREE.Vector3());
+  if (!barkBox.isEmpty()) {
+    const baseEnd = growthSign > 0 ? barkBox.min.getComponent(longestAxis) : barkBox.max.getComponent(longestAxis);
+    trunkBase.setComponent(longestAxis, baseEnd);
+  }
+  trunkBase.applyQuaternion(normalizeRotation);
+  const normalizedTree = new THREE.Group();
+  normalizedTree.name = 'normalized-tree';
+  normalizedTree.quaternion.copy(normalizeRotation);
+  normalizedTree.add(treeTemplate.clone(true));
+  normalizedTree.position.set(-trunkBase.x, -trunkBase.y, -trunkBase.z);
+  normalizedTree.updateMatrixWorld(true);
+  let normalizedBox = new THREE.Box3().setFromObject(normalizedTree);
+  const groundCorrection = -normalizedBox.min.y;
+  normalizedTree.position.y += groundCorrection;
+  normalizedTree.updateMatrixWorld(true);
+  normalizedBox = new THREE.Box3().setFromObject(normalizedTree);
+  const normalizedTreeSize = normalizedBox.getSize(new THREE.Vector3());
+  const treeAfter = boxRecord(normalizedBox);
+  const treeBaseLift = groundCorrection;
+
+  const seededRandom = (() => {
+    let seed = (E.treeSeed >>> 0) || 1;
+    return () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+  })();
+  const minRadius = Math.max(E.treeRadiusMin, E.treeClearRadius);
+  const deskCenter = new THREE.Vector2(CONFIG.orbit.target[0], CONFIG.orbit.target[2]);
+  const treePlacements = [];
+  for (let attempt = 0; treePlacements.length < E.treeCount && attempt < E.treeCount * 1000; attempt++) {
+    const radius = Math.sqrt(minRadius ** 2 + seededRandom() * (E.treeRadiusMax ** 2 - minRadius ** 2));
+    const angle = seededRandom() * Math.PI * 2;
+    const x = deskCenter.x + Math.cos(angle) * radius;
+    const z = deskCenter.y + Math.sin(angle) * radius;
+    if (Math.hypot(x - deskCenter.x, z - deskCenter.y) < E.treeClearRadius) continue;
+    if (treePlacements.some((spot) => Math.hypot(x - spot.x, z - spot.z) < E.treeMinSeparation)) continue;
+    treePlacements.push({ x, z, yaw: seededRandom() * Math.PI * 2, height: E.treeHeight * (0.75 + seededRandom() * 0.5) });
+  }
+  const treeGroundChecks = [];
+  for (let i = 0; i < treePlacements.length; i++) {
+    const spot = treePlacements[i];
+    const tree = new THREE.Group();
+    tree.add(normalizedTree.clone(true));
+    tree.name = `field-tree-${i + 1}`;
+    tree.scale.setScalar(spot.height / normalizedTreeSize.y);
+    tree.rotation.y = spot.yaw;
+    tree.position.set(spot.x, 0, spot.z);
     tree.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = false;
       object.receiveShadow = true;
     });
     scene.add(tree);
+    tree.updateWorldMatrix(true, true);
+    const placedBox = new THREE.Box3().setFromObject(tree);
+    const minY = placedBox.min.y;
+    const grounded = Math.abs(minY) < 1e-4;
+    treeGroundChecks.push({ index: i + 1, minY, grounded, height: placedBox.getSize(new THREE.Vector3()).y });
     if (treeAsset.animations.length) {
       const mixer = new THREE.AnimationMixer(tree);
       const action = mixer.clipAction(treeAsset.animations[0]);
@@ -171,6 +254,14 @@ export function setupFieldModels(scene, { grassAsset, treeAsset }) {
       mixer.timeScale = F.trees.animationSpeed;
       mixers.push(mixer);
     }
+  }
+  if (treeDebug) {
+    console.log('[field] tree bbox before normalization', treeBefore);
+    console.log('[field] tree bbox after normalization', treeAfter);
+    console.log(`[field] tree tallest axis ${axisNames[longestAxis]} · growth sign ${growthSign} · normalized height ${normalizedTreeSize.y.toFixed(3)} m · trunk base lift ${treeBaseLift.toFixed(5)} m`);
+    console.assert(treePlacements.length === E.treeCount, `[field] placed ${treePlacements.length}/${E.treeCount} trees with requested separation`);
+    treeGroundChecks.forEach((check) => console.assert(check.grounded, `[field] tree ${check.index} bbox min.y ${check.minY} is not ground level`));
+    console.log('[field] tree ground checks', treeGroundChecks);
   }
 
   const resourceBytes = (path) => {
@@ -186,7 +277,8 @@ export function setupFieldModels(scene, { grassAsset, treeAsset }) {
       grassPatches: grassSources.length ? patches.count : 0,
       treeFileBytes: resourceBytes(CONFIG.assets.fieldTree),
       treeTrianglesPerModel,
-      treeInstances: F.trees.placements.length,
+      treeInstances: treePlacements.length,
+      treeNormalization: { before: treeBefore, after: treeAfter, tallestAxis: axisNames[longestAxis], growthSign, groundChecks: treeGroundChecks },
     },
     update(now) {
       const delta = lastUpdate === null ? 0 : Math.min(0.1, (now - lastUpdate) / 1000);
