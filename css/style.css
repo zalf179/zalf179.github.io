@@ -6,7 +6,10 @@
    ============================================================ */
 
 :root {
-  --bg: #10151c;
+  --bg: #9bcdf0;
+  --field-sky: #9bcdf0;
+  --field-haze: #c4dfeb;
+  --field-ground: #648d3c;
   --accent: #39ff88;
   --accent-dim: rgba(57, 255, 136, 0.35);
   --ink: #dfe2eb;
@@ -23,7 +26,7 @@ html, body {
 }
 
 html {
-  background: var(--bg);
+  background: linear-gradient(180deg, var(--field-sky) 0%, var(--field-haze) 58%, #aac87d 76%, var(--field-ground) 100%);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -31,8 +34,8 @@ body {
   margin: 0;
   color: var(--ink);
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Matches the fog and wall color at the edges of the transparent scene. */
-  background: var(--bg);
+  /* Open sky behind the transparent WebGL canvas and CSS3D display cutout. */
+  background: linear-gradient(180deg, var(--field-sky) 0%, var(--field-haze) 58%, #aac87d 76%, var(--field-ground) 100%);
 }
 
 /* ------------------------------------------------------------
@@ -75,7 +78,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background: #10151c;
   transition: opacity 0.6s ease, visibility 0.6s ease;
 }
 #loader.done {

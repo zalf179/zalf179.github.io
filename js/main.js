@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import {
   createRenderer, createCamera, createScene, setupEnvironment,
-  loadModel, measureBounds, resizeRenderer, setMaxAnisotropy,
+  loadModel, loadFieldModels, setupFieldModels, measureBounds, resizeRenderer, setMaxAnisotropy,
   findMeshes, verifyScreenQuad,
 } from './scene.js';
 import { setupLights } from './lighting.js';
@@ -86,7 +86,7 @@ async function boot() {
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, screen: null, interaction: null, debug: false,
+    lights: null, screen: null, interaction: null, grass: null, fieldAssets: null, debug: false,
     markDirty: () => { dirty = true; },
   };
   window.__zally = app;
@@ -111,18 +111,22 @@ async function boot() {
   const manager = new THREE.LoadingManager();
   manager.onError = (url) => console.error('Asset load error:', url);
 
-  setupEnvironment(scene, renderer);
+  app.grass = setupEnvironment(scene, renderer);
 
   try {
-    const { gltf, report } = await loadModel(manager, (event) => {
-      if (event.total > 0) {
-        window.__portfolioModelBytes = event.total;
-        setProgress(Math.min(90, (event.loaded / event.total) * 90));
-      } else setIndeterminateProgress();
-    });
+    const [{ gltf, report }, fieldModels] = await Promise.all([
+      loadModel(manager, (event) => {
+        if (event.total > 0) {
+          window.__portfolioModelBytes = event.total;
+          setProgress(Math.min(90, (event.loaded / event.total) * 90));
+        } else setIndeterminateProgress();
+      }),
+      loadFieldModels(manager),
+    ]);
     setProgress(90);
     const model = gltf.scene || gltf.scenes[0];
     scene.add(model);
+    app.fieldAssets = setupFieldModels(scene, fieldModels);
     model.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = CONFIG.shadows.enabled;
@@ -167,7 +171,10 @@ async function boot() {
     );
 
     const params = new URLSearchParams(location.search);
-    if (params.has('debug')) enableDebugInfo();
+    if (params.has('debug')) {
+      enableDebugInfo();
+      reportFieldAssetStats(app.fieldAssets?.stats);
+    }
 
     let compileProgress = 90;
     const compileTicker = window.setInterval(() => {
@@ -259,6 +266,10 @@ async function boot() {
 
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
+    if (app.coffee?.update(now)) dirty = true;
+    if (app.grass?.update(now)) dirty = true;
+    if (app.fieldAssets?.update(now)) dirty = true;
+
     if (dirty) {
       renderer.render(scene, camera);
       // CSS camera updated in the SAME frame as the WebGL one, so the DOM
@@ -271,13 +282,35 @@ async function boot() {
     if (infoOn && now - perfLast >= 1000) {
       const fps = Math.round((frames * 1000) / (now - perfLast));
       const i = renderer.info;
-      console.log(`[perf] ${fps} fps · calls ${i.render.calls} · tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
+      console.log(`[perf] ${fps} fps · draw calls ${i.render.calls} · rendered tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
       frames = 0;
       perfLast = now;
     }
   }
 
   loop();
+}
+
+async function reportFieldAssetStats(stats) {
+  if (!stats) return;
+  const measureSize = async (path, measured) => {
+    if (measured > 0) return measured;
+    try {
+      const response = await fetch(new URL(path, document.baseURI), { method: 'HEAD', cache: 'force-cache' });
+      return Number(response.headers.get('content-length')) || 0;
+    } catch { return 0; }
+  };
+  const [grassBytes, treeBytes] = await Promise.all([
+    measureSize(CONFIG.assets.fieldGrass, stats.grassFileBytes),
+    measureSize(CONFIG.assets.fieldTree, stats.treeFileBytes),
+  ]);
+  const size = (bytes) => bytes > 0 ? `${(bytes / 1024).toFixed(1)} KiB` : 'size unavailable';
+  const grassPlaced = stats.grassTrianglesPerPatch * stats.grassPatches;
+  const treePlaced = stats.treeTrianglesPerModel * stats.treeInstances;
+  console.log(
+    `[field] grass.glb ${size(grassBytes)} · ${stats.grassTrianglesPerPatch.toLocaleString()} tris/patch × ${stats.grassPatches} = ${grassPlaced.toLocaleString()} placed tris; ` +
+    `tree.glb ${size(treeBytes)} · ${stats.treeTrianglesPerModel.toLocaleString()} tris/tree × ${stats.treeInstances} = ${treePlaced.toLocaleString()} placed tris`,
+  );
 }
 
 function reportLoadMetrics(debug) {

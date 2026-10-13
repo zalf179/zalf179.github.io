@@ -15,19 +15,29 @@ export const CREDIT_TEXT =
   'This work is based on "Computer Desk" ' +
   '(https://sketchfab.com/3d-models/computer-desk-ff0674f66e11462e8b3417dee2b58ac9) ' +
   'by CR!STALLL (https://sketchfab.com/CR1STALLL) licensed under CC-BY-4.0 ' +
-  '(http://creativecommons.org/licenses/by/4.0/). Model optimized/compressed by me.';
+  '(http://creativecommons.org/licenses/by/4.0/). Model optimized/compressed by me. ' +
+  'This work is based on "Tree Animate" ' +
+  '(https://sketchfab.com/3d-models/tree-animate-f0f9eb5e6c104bbb8e1f41c97019e6f2) ' +
+  'by RandyGF (https://sketchfab.com/RandyGF) licensed under CC-BY-4.0 ' +
+  '(http://creativecommons.org/licenses/by/4.0/). ' +
+  'This work is based on "Grass" ' +
+  '(https://sketchfab.com/3d-models/grass-f2f2bddb2728483a9105c5f5114eb15e) ' +
+  'by Cosmic_dust (https://sketchfab.com/Cosmic_dust) licensed under CC-BY-4.0 ' +
+  '(http://creativecommons.org/licenses/by/4.0/).';
 
 export const CONFIG = {
   assets: {
     // Repo-root file; relative path so it works on the github.io subpath.
     model: 'computer_desk-opt.glb',
+    fieldGrass: 'assets/environment/grass/grass.glb',
+    fieldTree: 'assets/environment/tree/tree.glb',
   },
 
   renderer: {
     antialias: true,
     pixelRatioCap: 1.5,
     toneMappingExposure: 1.05,
-    // Transparent canvas lets the CSS room-tone color show through.
+    // Transparent canvas lets the CSS sky gradient show through.
     clearColor: 0x05070a,
     clearAlpha: 0,
   },
@@ -43,19 +53,37 @@ export const CONFIG = {
     radius: 3,
   },
 
-  room: {
-    floorColor: 0x241e1a,
-    wallColor: 0x2b3644,
-    backgroundColor: 0x10151c,
-    floorRoughness: 0.9,
-    wallRoughness: 1,
-    floorSize: 40,
-    wallWidth: 30,
-    wallHeight: 14,
-    wallZ: -2.85,
-    sideWallX: 5,
-    sideWallFrontZ: 12,
-    sideWallDepth: 14.85,
+  field: {
+    groundColor: 0x648d3c,
+    grassColors: [0x3e642e, 0x537d34, 0x769b43, 0x91a94d],
+    skyColor: 0x9bcdf0,
+    hazeColor: 0xc4dfeb,
+    roughness: 0.96,
+    size: 240,
+    textureRepeat: 120,
+    textureResolution: 512,
+    bladesPerTexture: 5200,
+    wavingGrass: {
+      enabled: true,
+      tuftCount: 30000,
+      bladesPerTuft: 4,
+      area: 24,
+      heightMin: 0.1,
+      heightMax: 0.27,
+      widthMin: 0.004,
+      widthMax: 0.009,
+      windStrength: 0.055,
+      windSpeed: 0.9,
+      excludeDeskRadius: 1.5,
+    },
+    grassPatches: { count: 20, scale: 0.55, area: 24, excludeDeskRadius: 3.2 },
+    trees: {
+      scale: 0.016,
+      animationSpeed: 0.25,
+      // Keep the trees within the free-look area, but outside the monitor's
+      // projected screen so they cannot cover its CSS3D content.
+      placements: [[-4.8, -7.6], [-9, -0.3], [8.5, -6], [10, 7]],
+    },
   },
 
   camera: {
@@ -71,9 +99,9 @@ export const CONFIG = {
   },
 
   // Lights are entirely ours: the glb ships with none. Values are a starting
-  // mood ("a lit corner of a dark room").
+  // mood (warm desk lighting in a cool, open landscape).
   lights: {
-    hemi: { sky: 0x9fb4d6, ground: 0x14100c, intensity: 0.2 },
+    hemi: { sky: 0xb9ddf5, ground: 0x38512b, intensity: 0.42 },
     key: { color: 0xffe9cf, intensity: 2.4, position: [-2.1, 2.6, 2.2] },
     fill: { color: 0x9fc2ff, intensity: 0.14, position: [2.4, 1.2, 2.6] },
     // Faint cool rim from behind/above the chair so its silhouette reads
@@ -144,7 +172,7 @@ export const CONFIG = {
   },
 
   environment: {
-    fog: { near: 3.2, far: 10.5 },
+    fog: { near: 20, far: 70 },
     // Soft baked contact-shadow blobs that supplement the real-time shadows.
     contactShadow: { opacity: 0.24, y: 0.003 },
   },
