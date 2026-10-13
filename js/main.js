@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import {
   createRenderer, createCamera, createScene, setupEnvironment,
-  loadModel, loadFieldModels, setupFieldModels, measureBounds, resizeRenderer, setMaxAnisotropy,
+  loadModel, measureBounds, resizeRenderer, setMaxAnisotropy,
   findMeshes, verifyScreenQuad,
 } from './scene.js';
 import { setupLights } from './lighting.js';
@@ -54,6 +54,243 @@ function webglAvailable() {
   } catch { return false; }
 }
 
+function createCoffeeEffect(scene, cup, camera) {
+  const cfg = CONFIG.coffee;
+  if (!cfg?.enabled || !cup) return null;
+
+  cup.updateWorldMatrix(true, false);
+  cup.geometry.computeBoundingBox();
+  const rimLocal = new THREE.Vector3(
+    cfg.openingCenter[0],
+    cup.geometry.boundingBox.max.y,
+    cfg.openingCenter[2],
+  );
+  const rim = cup.localToWorld(rimLocal.clone());
+  const surfaceY = rim.y - cfg.surfaceInset;
+
+  const coffeeMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uWarm: { value: new THREE.Color(cfg.color) },
+      uDark: { value: new THREE.Color(cfg.darkColor) },
+      uCrema: { value: new THREE.Color(cfg.cremaColor) },
+      uCream: { value: new THREE.Color(cfg.creamColor) },
+      uHighlight: { value: new THREE.Color(cfg.highlightColor) },
+      uTextureStrength: { value: cfg.textureStrength },
+      uHeartScale: { value: cfg.heartScale },
+      uEtchStrength: { value: cfg.artGrooveStrength },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uTextureStrength;
+      uniform vec3 uWarm;
+      uniform vec3 uDark;
+      uniform vec3 uCrema;
+      uniform vec3 uCream;
+      uniform vec3 uHighlight;
+      uniform float uHeartScale;
+      uniform float uEtchStrength;
+      varying vec2 vUv;
+
+      float hash(vec2 p) {
+        p = fract(p * vec2(127.1, 311.7));
+        p += dot(p, p + 34.5);
+        return fract(p.x * p.y);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                   mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+      }
+      float fbm(vec2 p) {
+        float n = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 4; i++) {
+          n += a * noise(p);
+          p = p * 2.0 + vec2(13.7, 8.2);
+          a *= 0.5;
+        }
+        return n;
+      }
+      void main() {
+        vec2 p = (vUv - 0.5) * 2.0;
+        float r = length(p);
+        float angle = atan(p.y, p.x);
+        float t = uTime * 0.12;
+
+        // Slow, uneven marbling gives the dark liquid a subtle roasted-coffee texture.
+        vec2 warped = p * 5.5 + vec2(fbm(p * 4.0 + t), fbm(p * 4.0 - t)) * 1.8;
+        float grain = fbm(warped + vec2(cos(angle + r * 11.0 - t), sin(angle + r * 11.0 - t)) * 0.22);
+        float swirl = sin(angle * 2.0 + r * 21.0 - t * 1.4) * 0.5 + 0.5;
+        float shade = clamp(0.34 + grain * 0.5 + (swirl - 0.5) * uTextureStrength, 0.0, 1.0);
+        vec3 color = mix(uDark, uWarm, shade);
+
+        // A broken, very thin crema ring sits just inside the cup's edge.
+        float edgeNoise = noise(vec2(angle * 7.0, t * 0.25)) * 0.025;
+        float cremaBand = smoothstep(0.80, 0.88, r + edgeNoise) *
+                          (1.0 - smoothstep(0.96, 1.0, r + edgeNoise));
+        float cremaVariation = 0.12 + grain * 0.22 + max(0.0, swirl - 0.58) * 0.12;
+        color = mix(color, uCrema, cremaBand * cremaVariation);
+
+        // Ivory microfoam forms a soft heart with a fine caramel-colored edge.
+        vec2 heart = vec2(p.x / uHeartScale, (p.y + 0.015) / uHeartScale);
+        float heartBase = dot(heart, heart) - 1.0;
+        float heartValue = heartBase * heartBase * heartBase - heart.x * heart.x * heart.y * heart.y * heart.y;
+        vec2 outerHeart = heart / 1.075;
+        float outerBase = dot(outerHeart, outerHeart) - 1.0;
+        float outerValue = outerBase * outerBase * outerBase - outerHeart.x * outerHeart.x * outerHeart.y * outerHeart.y * outerHeart.y;
+        float heartMask = 1.0 - smoothstep(-0.035, 0.035, heartValue);
+        float outerMask = 1.0 - smoothstep(-0.035, 0.035, outerValue);
+        float heartEdge = max(0.0, outerMask - heartMask);
+        float foamGrain = noise(heart * 38.0 + vec2(t * 0.12, 0.0));
+        color = mix(color, uCrema, heartEdge * 0.78);
+        color = mix(color, mix(uCream, uHighlight, foamGrain * 0.09), heartMask * 0.96);
+        float stem = exp(-pow(heart.x * 30.0, 2.0)) *
+                     smoothstep(-0.82, -0.58, heart.y) * (1.0 - smoothstep(0.4, 0.58, heart.y));
+        float etching = stem * heartMask * uEtchStrength;
+        color = mix(color, uCrema, etching * 0.32);
+
+        // Soft elongated reflection with a faint ripple response.
+        vec2 reflection = vec2(p.x * 0.78 + p.y * 0.63, -p.x * 0.63 + p.y * 0.78);
+        float streak = exp(-pow((reflection.x + 0.16) / 0.52, 2.0) - pow((reflection.y - 0.28) / 0.075, 2.0));
+        float ripple = 0.5 + 0.5 * sin(r * 58.0 - t * 4.0 + grain * 2.5);
+        float sheen = streak * (0.12 + ripple * 0.08) + pow(max(0.0, grain - 0.72), 3.0) * 0.12;
+        color = mix(color, uHighlight, clamp(sheen, 0.0, 0.24));
+
+        float mask = 1.0 - smoothstep(0.985, 1.0, r);
+        gl_FragColor = vec4(color, mask);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const coffee = new THREE.Mesh(new THREE.CircleGeometry(cfg.surfaceRadius, 64), coffeeMaterial);
+  coffee.name = 'coffee-surface';
+  coffee.rotation.x = -Math.PI / 2;
+  coffee.position.set(rim.x, surfaceY, rim.z);
+  coffee.castShadow = false;
+  coffee.receiveShadow = false;
+  scene.add(coffee);
+
+  const vertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+  const fragmentShader = `
+    uniform float uTime;
+    uniform float uSeed;
+    uniform float uOpacity;
+    uniform vec3 uColor;
+    varying vec2 vUv;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+                 mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0)), f.x), f.y);
+    }
+    float fbm(vec2 p) {
+      float n = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 4; i++) {
+        n += a * noise(p);
+        p = p * 2.03 + vec2(17.1, 9.2);
+        a *= 0.5;
+      }
+      return n;
+    }
+    void main() {
+      vec2 p = vUv;
+      float t = uTime * 0.24;
+      vec2 warp = vec2(
+        fbm(p * vec2(3.0, 5.0) + vec2(t, uSeed)),
+        fbm(p * vec2(3.0, 5.0) + vec2(6.7, -t * 0.8 + uSeed))
+      );
+      float n = fbm(p * vec2(5.0, 8.0) + warp * 2.4 + vec2(-t * 0.7, uSeed));
+      float drift = (n - 0.48) * 0.19 + sin(p.y * 8.0 + uTime * 0.72 + uSeed) * 0.055;
+      float center = 0.5 + drift * smoothstep(0.0, 0.8, p.y);
+      float width = mix(0.075, 0.34, p.y);
+      float across = abs(p.x - center) / width;
+      float softShape = exp(-across * across * 2.4);
+      float billows = smoothstep(0.16, 0.73, n + (1.0 - across) * 0.17);
+      float verticalFade = smoothstep(0.0, 0.15, p.y) * (1.0 - smoothstep(0.78, 1.0, p.y));
+      float alpha = softShape * billows * verticalFade * uOpacity;
+      if (alpha < 0.004) discard;
+      gl_FragColor = vec4(uColor, alpha);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }
+  `;
+  const wisps = [];
+  for (let i = 0; i < 3; i++) {
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uSeed: { value: i * 4.17 },
+        uOpacity: { value: 0 },
+        uColor: { value: new THREE.Color(cfg.steamColor) },
+      },
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const wisp = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    wisp.name = `coffee-steam-${i + 1}`;
+    wisp.scale.set(0.075, cfg.steamHeight, 1);
+    wisp.renderOrder = 1;
+    scene.add(wisp);
+    wisps.push({ sprite: wisp, phase: i / 3, offset: (i - 1) * 0.009 });
+  }
+
+  let lastUpdate = -Infinity;
+  return {
+    update(now) {
+      if (now - lastUpdate < 32) return false;
+      lastUpdate = now;
+      const seconds = now / 1000;
+      coffeeMaterial.uniforms.uTime.value = seconds * cfg.swirlSpeed;
+      for (const { sprite, phase: phaseOffset, offset } of wisps) {
+        const phase = (seconds * cfg.steamSpeed + phaseOffset) % 1;
+        const drift = phase * phase;
+        sprite.position.set(
+          rim.x + offset + Math.sin(seconds * 1.1 + phaseOffset * 8) * 0.009 * (1 + drift),
+          surfaceY + 0.008 + phase * cfg.steamHeight * 0.7,
+          rim.z + Math.cos(seconds * 0.9 + phaseOffset * 7) * 0.007 * (1 + drift),
+        );
+        sprite.quaternion.copy(camera.quaternion);
+        sprite.material.uniforms.uTime.value = seconds + phaseOffset * 2.0;
+        sprite.material.uniforms.uOpacity.value = Math.sin(Math.PI * phase) * cfg.steamOpacity;
+      }
+      return true;
+    },
+  };
+}
+
 // ------------------------------------------------------------------- boot
 async function boot() {
   if (!canvas) return;
@@ -86,7 +323,7 @@ async function boot() {
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, screen: null, interaction: null, grass: null, fieldAssets: null, debug: false,
+    lights: null, screen: null, interaction: null, debug: false,
     markDirty: () => { dirty = true; },
   };
   window.__zally = app;
@@ -111,22 +348,18 @@ async function boot() {
   const manager = new THREE.LoadingManager();
   manager.onError = (url) => console.error('Asset load error:', url);
 
-  app.grass = setupEnvironment(scene, renderer);
+  setupEnvironment(scene, renderer);
 
   try {
-    const [{ gltf, report }, fieldModels] = await Promise.all([
-      loadModel(manager, (event) => {
-        if (event.total > 0) {
-          window.__portfolioModelBytes = event.total;
-          setProgress(Math.min(90, (event.loaded / event.total) * 90));
-        } else setIndeterminateProgress();
-      }),
-      loadFieldModels(manager),
-    ]);
+    const { gltf, report } = await loadModel(manager, (event) => {
+      if (event.total > 0) {
+        window.__portfolioModelBytes = event.total;
+        setProgress(Math.min(90, (event.loaded / event.total) * 90));
+      } else setIndeterminateProgress();
+    });
     setProgress(90);
     const model = gltf.scene || gltf.scenes[0];
     scene.add(model);
-    app.fieldAssets = setupFieldModels(scene, fieldModels);
     model.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = CONFIG.shadows.enabled;
@@ -139,6 +372,7 @@ async function boot() {
     app.model = model;
     app.bounds = bounds;
     app.meshes = findMeshes(model);
+    app.coffee = createCoffeeEffect(scene, app.meshes.get(CONFIG.coffee.cupMesh), camera);
     app.lights = lights;
     lights.lamp.setOn(1);
 
@@ -173,7 +407,6 @@ async function boot() {
     const params = new URLSearchParams(location.search);
     if (params.has('debug')) {
       enableDebugInfo();
-      reportFieldAssetStats(app.fieldAssets?.stats);
     }
 
     let compileProgress = 90;
@@ -267,9 +500,6 @@ async function boot() {
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
     if (app.coffee?.update(now)) dirty = true;
-    if (app.grass?.update(now)) dirty = true;
-    if (app.fieldAssets?.update(now)) dirty = true;
-
     if (dirty) {
       renderer.render(scene, camera);
       // CSS camera updated in the SAME frame as the WebGL one, so the DOM
@@ -289,28 +519,6 @@ async function boot() {
   }
 
   loop();
-}
-
-async function reportFieldAssetStats(stats) {
-  if (!stats) return;
-  const measureSize = async (path, measured) => {
-    if (measured > 0) return measured;
-    try {
-      const response = await fetch(new URL(path, document.baseURI), { method: 'HEAD', cache: 'force-cache' });
-      return Number(response.headers.get('content-length')) || 0;
-    } catch { return 0; }
-  };
-  const [grassBytes, treeBytes] = await Promise.all([
-    measureSize(CONFIG.assets.fieldGrass, stats.grassFileBytes),
-    measureSize(CONFIG.assets.fieldTree, stats.treeFileBytes),
-  ]);
-  const size = (bytes) => bytes > 0 ? `${(bytes / 1024).toFixed(1)} KiB` : 'size unavailable';
-  const grassPlaced = stats.grassTrianglesPerPatch * stats.grassPatches;
-  const treePlaced = stats.treeTrianglesPerModel * stats.treeInstances;
-  console.log(
-    `[field] grass.glb ${size(grassBytes)} · ${stats.grassTrianglesPerPatch.toLocaleString()} tris/patch × ${stats.grassPatches} = ${grassPlaced.toLocaleString()} placed tris; ` +
-    `tree.glb ${size(treeBytes)} · ${stats.treeTrianglesPerModel.toLocaleString()} tris/tree × ${stats.treeInstances} = ${treePlaced.toLocaleString()} placed tris`,
-  );
 }
 
 function reportLoadMetrics(debug) {

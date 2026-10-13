@@ -53,22 +53,75 @@ const PAGES = {
       <p class="dim">Architecting secure, resilient infrastructure.</p>
       <div class="sect">
         <div class="h">&gt; SECURITY</div>
-        <div class="kv"><b>DAST/SAST</b><span>automated vuln scans, dependency auditing, container scanning</span></div>
-        <div class="kv"><b>Pentesting</b><span>network/application security evaluation, threat emulation</span></div>
-        <div class="kv"><b>SIEM/SOC</b><span>intrusion monitoring, threat hunting, log aggregation</span></div>
+        <div class="tool-row">
+          <b>DAST/SAST</b>
+          <div class="brand-list" aria-label="DAST and SAST tools">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/zap" alt="" loading="lazy">OWASP ZAP</span>
+            <span class="brand-chip"><img class="nuclei-logo" src="https://docs.projectdiscovery.io/logo/ProjectDiscovery-Logo-OnLight.svg" alt="" loading="lazy">Nuclei</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/trivy/D40000" alt="" loading="lazy">Trivy</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/sonarqubeserver/126ED3" alt="" loading="lazy">SonarQube</span>
+          </div>
+        </div>
+        <div class="tool-row">
+          <b>Pentesting</b>
+          <div class="brand-list" aria-label="Pentesting tools">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/kalilinux/557C94" alt="" loading="lazy">Kali Linux</span>
+          </div>
+        </div>
+        <div class="tool-row">
+          <b>SIEM/SOC</b>
+          <div class="brand-list" aria-label="SIEM and SOC tools">
+            <span class="brand-chip"><img src="https://wazuh.com/uploads/2022/05/WAZUH.png" alt="" loading="lazy">Wazuh</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/elastic/005571" alt="" loading="lazy">ELK Stack</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/splunk/000000" alt="" loading="lazy">Splunk</span>
+          </div>
+        </div>
       </div>
       <div class="sect">
         <div class="h">&gt; CLOUD</div>
-        <div class="kv"><b>AWS</b><span class="warn">Learning</span></div>
-        <div class="kv"><b>Azure</b><span class="dim">Planned</span></div>
-        <div class="kv"><b>GCP</b><span class="dim">Planned</span></div>
+        <div class="kv"><span class="skill-brand"><img class="brand-aws" src="https://zonalogo.com/assets/aws-logo-png-svg.webp" alt=""><b>AWS</b></span><span class="warn">Learning</span></div>
+        <div class="kv"><span class="skill-brand"><img class="brand-azure" src="https://zonalogo.com/assets/azure-logo-png-svg.webp" alt=""><b>Azure</b></span><span class="warn">Learning</span></div>
+        <div class="kv"><span class="skill-brand"><img src="https://cdn.simpleicons.org/googlecloud/4285F4" alt="" loading="lazy"><b>GCP</b></span><span class="dim">Planned</span></div>
       </div>
       <div class="sect">
         <div class="h">&gt; DEVOPS</div>
-        <div class="note">Docker&nbsp;&nbsp;Kubernetes&nbsp;&nbsp;Terraform&nbsp;&nbsp;Ansible&nbsp;&nbsp;GitHub Actions</div>
-        <div class="kv"><b>IaC</b><span>version-controlled, peer-reviewed cloud environments</span></div>
-        <div class="kv"><b>DevSecOps</b><span>vuln scans + policy gates inside CI/CD</span></div>
-        <div class="kv"><b>Containers</b><span>image hardening, admission control, signing, runtime</span></div>
+        <div class="tool-row">
+          <b>IaC</b>
+          <div class="brand-list" aria-label="Infrastructure as code tools">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/terraform/844FBA" alt="" loading="lazy">Terraform</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/ansible/EE0000" alt="" loading="lazy">Ansible</span>
+          </div>
+        </div>
+        <div class="tool-row">
+          <b>CI/CD</b>
+          <div class="brand-list" aria-label="CI/CD tools">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/jenkins/D24939" alt="" loading="lazy">Jenkins</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/githubactions/2088FF" alt="" loading="lazy">GitHub Actions</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/gitlab/FC6D26" alt="" loading="lazy">GitLab</span>
+          </div>
+        </div>
+        <div class="tool-row">
+          <b>GitOps</b>
+          <div class="brand-list" aria-label="GitOps">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/argo" alt="" loading="lazy">Argo CD</span>
+          </div>
+        </div>
+        <div class="tool-row">
+          <b>Containers</b>
+          <div class="brand-list" aria-label="Container tools">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/docker/2496ED" alt="" loading="lazy">Docker</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/kubernetes/326CE5" alt="" loading="lazy">Kubernetes</span>
+          </div>
+        </div>
+        <div class="tool-row">
+          <b>Observability &amp; Logging</b>
+          <div class="brand-list" aria-label="Observability and logging tools">
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/grafana/F46800" alt="" loading="lazy">Grafana</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/elasticsearch/005571" alt="" loading="lazy">Elasticsearch</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/logstash/005571" alt="" loading="lazy">Logstash</span>
+            <span class="brand-chip"><img src="https://cdn.simpleicons.org/kibana/E8478B" alt="" loading="lazy">Kibana</span>
+          </div>
+        </div>
       </div>
     </div>`,
 

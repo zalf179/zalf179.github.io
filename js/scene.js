@@ -7,11 +7,6 @@ import { CONFIG } from './config.js';
 // Renderer: SRGB output, ACES tone mapping, capped pixel ratio, transparent
 // canvas so the CSS3D screen can remain visible beneath the WebGL scene.
 export function createRenderer(canvas) {
-  const palette = CONFIG.field;
-  const cssColor = (value) => `#${value.toString(16).padStart(6, '0')}`;
-  document.documentElement.style.setProperty('--field-sky', cssColor(palette.skyColor));
-  document.documentElement.style.setProperty('--field-haze', cssColor(palette.hazeColor));
-  document.documentElement.style.setProperty('--field-ground', cssColor(palette.groundColor));
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: CONFIG.renderer.antialias,
@@ -33,416 +28,60 @@ export function createCamera(aspect) {
 
 export function createScene() {
   const scene = new THREE.Scene();
-  scene.background = null; // CSS sky shows through the alpha canvas and display hole
+  scene.background = null; // CSS room-tone color shows through the alpha canvas
   const f = CONFIG.environment.fog;
-  scene.fog = new THREE.Fog(CONFIG.field.hazeColor, f.near, f.far);
+  scene.fog = new THREE.Fog(CONFIG.room.backgroundColor, f.near, f.far);
   return scene;
 }
 
-// Open field floor plus a procedural grass detail texture. The sky stays in
-// the page background so this environment never paints over the CSS3D screen.
+// PMREM + RoomEnvironment: low-intensity IBL for believable PBR reflections.
 export function setupEnvironment(scene, renderer) {
-  const F = CONFIG.field;
-  const grassTexture = makeGrassTexture(F, renderer);
+  const R = CONFIG.room;
   const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(F.size, F.size),
-    new THREE.MeshStandardMaterial({
-      color: F.groundColor,
-      map: grassTexture,
-      roughness: F.roughness,
-    }),
+    new THREE.PlaneGeometry(R.floorSize, R.floorSize),
+    new THREE.MeshStandardMaterial({ color: R.floorColor, roughness: R.floorRoughness }),
   );
-  floor.name = 'grass-field';
+  floor.name = 'room-floor';
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = 0;
   floor.receiveShadow = true;
   scene.add(floor);
-  const wavingGrass = F.wavingGrass.enabled ? createWavingGrass(scene, F) : null;
+
+  const wall = new THREE.Mesh(
+    new THREE.PlaneGeometry(R.wallWidth, R.wallHeight),
+    new THREE.MeshStandardMaterial({ color: R.wallColor, roughness: R.wallRoughness }),
+  );
+  wall.name = 'room-back-wall';
+  wall.position.set(0, R.wallHeight / 2, R.wallZ);
+  wall.receiveShadow = true;
+  scene.add(wall);
+
+  // Side walls close the room around the desk while staying beyond the
+  // free-look orbit. Their inner faces point toward the center of the room.
+  const sideGeometry = new THREE.PlaneGeometry(R.sideWallDepth, R.wallHeight);
+  const sideMaterial = new THREE.MeshStandardMaterial({
+    color: R.wallColor,
+    roughness: R.wallRoughness,
+    side: THREE.DoubleSide,
+  });
+  for (const [name, x, rotationY] of [
+    ['left', -R.sideWallX, Math.PI / 2],
+    ['right', R.sideWallX, -Math.PI / 2],
+  ]) {
+    const sideWall = new THREE.Mesh(sideGeometry, sideMaterial);
+    sideWall.name = `room-${name}-wall`;
+    sideWall.rotation.y = rotationY;
+    sideWall.position.set(x, R.wallHeight / 2, (R.sideWallFrontZ + R.wallZ) / 2);
+    sideWall.receiveShadow = true;
+    scene.add(sideWall);
+  }
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envTex;
   pmrem.dispose();
-  return wavingGrass;
-}
-
-export async function loadFieldModels(manager) {
-  const loader = new GLTFLoader(manager);
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  const [grassAsset, treeAsset] = await Promise.all([
-    loader.loadAsync(CONFIG.assets.fieldGrass),
-    loader.loadAsync(CONFIG.assets.fieldTree),
-  ]);
-  processTextures(grassAsset.scene);
-  processTextures(treeAsset.scene);
-  return { grassAsset, treeAsset };
-}
-
-export function setupFieldModels(scene, { grassAsset, treeAsset }) {
-  const F = CONFIG.field;
-  const E = CONFIG.environment;
-  const patches = F.grassPatches;
-  const grassRoot = grassAsset.scene;
-  grassRoot.updateMatrixWorld(true);
-  const grassSources = [];
-  grassRoot.traverse((object) => {
-    if (object.isMesh && object.name.startsWith('Grass1_')) grassSources.push(object);
-  });
-  let grassTrianglesPerPatch = 0;
-  let treeTrianglesPerModel = 0;
-  if (grassSources.length && patches.count > 0) {
-    const halfArea = patches.area / 2;
-    let seed = 882743;
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 4294967296;
-    };
-    const placements = Array.from({ length: patches.count }, () => {
-      let x = 0;
-      let z = 0;
-      do {
-        x = (random() * 2 - 1) * halfArea;
-        z = (random() * 2 - 1) * halfArea;
-      } while (x * x + z * z < patches.excludeDeskRadius * patches.excludeDeskRadius);
-      return {
-        position: new THREE.Vector3(x, 0, z),
-        rotation: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), random() * Math.PI * 2),
-      };
-    });
-
-    grassRoot.updateWorldMatrix(true, true);
-    for (const sourceMesh of grassSources) {
-      sourceMesh.geometry.computeBoundingBox();
-      const localCenter = sourceMesh.geometry.boundingBox.getCenter(new THREE.Vector3());
-      const world = sourceMesh.matrixWorld.clone();
-      const sourcePosition = new THREE.Vector3();
-      const sourceRotation = new THREE.Quaternion();
-      const sourceScale = new THREE.Vector3();
-      world.decompose(sourcePosition, sourceRotation, sourceScale);
-      const sourceBasis = new THREE.Matrix4().compose(new THREE.Vector3(), sourceRotation, sourceScale);
-      const recenter = new THREE.Matrix4().makeTranslation(-localCenter.x, -localCenter.y, -localCenter.z);
-      const instances = new THREE.InstancedMesh(sourceMesh.geometry, sourceMesh.material, patches.count);
-      const placement = new THREE.Matrix4();
-      const scale = new THREE.Vector3(patches.scale, patches.scale, patches.scale);
-      const baseMatrix = new THREE.Matrix4();
-      const geometry = sourceMesh.geometry;
-      const indexCount = geometry.index ? geometry.index.count : geometry.attributes.position.count;
-      grassTrianglesPerPatch += Math.floor(indexCount / 3);
-      for (let i = 0; i < placements.length; i++) {
-        placement.compose(placements[i].position, placements[i].rotation, scale);
-        baseMatrix.copy(placement).multiply(sourceBasis).multiply(recenter);
-        instances.setMatrixAt(i, baseMatrix);
-      }
-      instances.instanceMatrix.needsUpdate = true;
-      instances.name = `field-grass-${sourceMesh.name}`;
-      instances.castShadow = false;
-      instances.receiveShadow = false;
-      instances.computeBoundingSphere();
-      scene.add(instances);
-    }
-  } else {
-    console.warn('[field] no Grass1 meshes were found in grass.glb.');
-  }
-
-  const mixers = [];
-  const treeTemplate = treeAsset.scene;
-  treeTemplate.updateWorldMatrix(true, true);
-  const boxRecord = (box) => ({
-    size: box.getSize(new THREE.Vector3()).toArray(),
-    min: box.min.toArray(),
-    max: box.max.toArray(),
-  });
-  const treeBeforeBox = new THREE.Box3().setFromObject(treeTemplate);
-  const treeBefore = boxRecord(treeBeforeBox);
-  const barkMeshes = [];
-  const foliageMeshes = [];
-  const treeDebug = new URLSearchParams(location.search).has('debug');
-  treeTemplate.traverse((object) => {
-    if (!object.isMesh) return;
-    const geometry = object.geometry;
-    const indexCount = geometry.index ? geometry.index.count : geometry.attributes.position.count;
-    treeTrianglesPerModel += Math.floor(indexCount / 3);
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    const materialNames = materials.map((material) => material?.name || '').join(' ');
-    if (/bark|trunk/i.test(`${object.name} ${materialNames}`)) barkMeshes.push(object);
-    if (/leaf|leaves|branch/i.test(`${object.name} ${materialNames}`)) foliageMeshes.push(object);
-  });
-  const longestAxis = treeBeforeBox.getSize(new THREE.Vector3()).toArray()
-    .reduce((best, value, axis, size) => value > size[best] ? axis : best, 0);
-  const axisNames = ['x', 'y', 'z'];
-  const barkBox = new THREE.Box3();
-  barkMeshes.forEach((mesh) => barkBox.union(new THREE.Box3().setFromObject(mesh)));
-  const foliageBox = new THREE.Box3();
-  foliageMeshes.forEach((mesh) => foliageBox.union(new THREE.Box3().setFromObject(mesh)));
-  const barkCenter = barkBox.isEmpty() ? treeBeforeBox.getCenter(new THREE.Vector3()) : barkBox.getCenter(new THREE.Vector3());
-  const foliageCenter = foliageBox.isEmpty() ? treeBeforeBox.getCenter(new THREE.Vector3()) : foliageBox.getCenter(new THREE.Vector3());
-  const axis = new THREE.Vector3(longestAxis === 0 ? 1 : 0, longestAxis === 1 ? 1 : 0, longestAxis === 2 ? 1 : 0);
-  const foliageDelta = foliageCenter.getComponent(longestAxis) - barkCenter.getComponent(longestAxis);
-  const growthSign = Math.abs(foliageDelta) > treeBeforeBox.getSize(new THREE.Vector3()).getComponent(longestAxis) * 0.01
-    ? Math.sign(foliageDelta)
-    : 1;
-  const growthAxis = axis.multiplyScalar(growthSign);
-  const normalizeRotation = new THREE.Quaternion().setFromUnitVectors(growthAxis, new THREE.Vector3(0, 1, 0));
-
-  // Locate the trunk end opposite the foliage, then rotate and ground the full
-  // model around that point. The same normalized transform is cloned per tree.
-  const trunkBase = barkBox.isEmpty() ? treeBeforeBox.getCenter(new THREE.Vector3()) : barkBox.getCenter(new THREE.Vector3());
-  if (!barkBox.isEmpty()) {
-    const baseEnd = growthSign > 0 ? barkBox.min.getComponent(longestAxis) : barkBox.max.getComponent(longestAxis);
-    trunkBase.setComponent(longestAxis, baseEnd);
-  }
-  trunkBase.applyQuaternion(normalizeRotation);
-  const normalizedTree = new THREE.Group();
-  normalizedTree.name = 'normalized-tree';
-  normalizedTree.quaternion.copy(normalizeRotation);
-  normalizedTree.add(treeTemplate.clone(true));
-  normalizedTree.position.set(-trunkBase.x, -trunkBase.y, -trunkBase.z);
-  normalizedTree.updateMatrixWorld(true);
-  let normalizedBox = new THREE.Box3().setFromObject(normalizedTree);
-  const groundCorrection = -normalizedBox.min.y;
-  normalizedTree.position.y += groundCorrection;
-  normalizedTree.updateMatrixWorld(true);
-  normalizedBox = new THREE.Box3().setFromObject(normalizedTree);
-  const normalizedTreeSize = normalizedBox.getSize(new THREE.Vector3());
-  const treeAfter = boxRecord(normalizedBox);
-  const treeBaseLift = groundCorrection;
-
-  const seededRandom = (() => {
-    let seed = (E.treeSeed >>> 0) || 1;
-    return () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 4294967296;
-    };
-  })();
-  const minRadius = Math.max(E.treeRadiusMin, E.treeClearRadius);
-  const deskCenter = new THREE.Vector2(CONFIG.orbit.target[0], CONFIG.orbit.target[2]);
-  const treePlacements = [];
-  for (let attempt = 0; treePlacements.length < E.treeCount && attempt < E.treeCount * 1000; attempt++) {
-    const radius = Math.sqrt(minRadius ** 2 + seededRandom() * (E.treeRadiusMax ** 2 - minRadius ** 2));
-    const angle = seededRandom() * Math.PI * 2;
-    const x = deskCenter.x + Math.cos(angle) * radius;
-    const z = deskCenter.y + Math.sin(angle) * radius;
-    if (Math.hypot(x - deskCenter.x, z - deskCenter.y) < E.treeClearRadius) continue;
-    if (treePlacements.some((spot) => Math.hypot(x - spot.x, z - spot.z) < E.treeMinSeparation)) continue;
-    treePlacements.push({ x, z, yaw: seededRandom() * Math.PI * 2, height: E.treeHeight * (0.75 + seededRandom() * 0.5) });
-  }
-  const treeGroundChecks = [];
-  for (let i = 0; i < treePlacements.length; i++) {
-    const spot = treePlacements[i];
-    const tree = new THREE.Group();
-    tree.add(normalizedTree.clone(true));
-    tree.name = `field-tree-${i + 1}`;
-    tree.scale.setScalar(spot.height / normalizedTreeSize.y);
-    tree.rotation.y = spot.yaw;
-    tree.position.set(spot.x, 0, spot.z);
-    tree.traverse((object) => {
-      if (!object.isMesh) return;
-      object.castShadow = false;
-      object.receiveShadow = true;
-    });
-    scene.add(tree);
-    tree.updateWorldMatrix(true, true);
-    const placedBox = new THREE.Box3().setFromObject(tree);
-    const minY = placedBox.min.y;
-    const grounded = Math.abs(minY) < 1e-4;
-    treeGroundChecks.push({ index: i + 1, minY, grounded, height: placedBox.getSize(new THREE.Vector3()).y });
-    if (treeAsset.animations.length) {
-      const mixer = new THREE.AnimationMixer(tree);
-      const action = mixer.clipAction(treeAsset.animations[0]);
-      action.play();
-      mixer.timeScale = F.trees.animationSpeed;
-      mixers.push(mixer);
-    }
-  }
-  if (treeDebug) {
-    console.log('[field] tree bbox before normalization', treeBefore);
-    console.log('[field] tree bbox after normalization', treeAfter);
-    console.log(`[field] tree tallest axis ${axisNames[longestAxis]} · growth sign ${growthSign} · normalized height ${normalizedTreeSize.y.toFixed(3)} m · trunk base lift ${treeBaseLift.toFixed(5)} m`);
-    console.assert(treePlacements.length === E.treeCount, `[field] placed ${treePlacements.length}/${E.treeCount} trees with requested separation`);
-    treeGroundChecks.forEach((check) => console.assert(check.grounded, `[field] tree ${check.index} bbox min.y ${check.minY} is not ground level`));
-    console.log('[field] tree ground checks', treeGroundChecks);
-  }
-
-  const resourceBytes = (path) => {
-    const url = new URL(path, document.baseURI).href;
-    const entry = performance.getEntriesByName(url).at(-1);
-    return entry?.encodedBodySize || entry?.transferSize || 0;
-  };
-  let lastUpdate = null;
-  return {
-    stats: {
-      grassFileBytes: resourceBytes(CONFIG.assets.fieldGrass),
-      grassTrianglesPerPatch,
-      grassPatches: grassSources.length ? patches.count : 0,
-      treeFileBytes: resourceBytes(CONFIG.assets.fieldTree),
-      treeTrianglesPerModel,
-      treeInstances: treePlacements.length,
-      treeNormalization: { before: treeBefore, after: treeAfter, tallestAxis: axisNames[longestAxis], growthSign, groundChecks: treeGroundChecks },
-    },
-    update(now) {
-      const delta = lastUpdate === null ? 0 : Math.min(0.1, (now - lastUpdate) / 1000);
-      lastUpdate = now;
-      for (const mixer of mixers) mixer.update(delta);
-      return mixers.length > 0;
-    },
-  };
-}
-
-function createWavingGrass(scene, field) {
-  const config = field.wavingGrass;
-  let seed = 1987421;
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-  const palette = field.grassColors.map((hex) => new THREE.Color(hex));
-  const halfArea = config.area / 2;
-  const bladeCount = config.tuftCount * config.bladesPerTuft;
-  const verticesPerBlade = 6;
-  const positions = new Float32Array(bladeCount * verticesPerBlade * 3);
-  const colors = new Float32Array(bladeCount * verticesPerBlade * 3);
-  const tips = new Float32Array(bladeCount * verticesPerBlade);
-  const phases = new Float32Array(bladeCount * verticesPerBlade);
-  const winds = new Float32Array(bladeCount * verticesPerBlade * 2);
-  const indices = new Uint32Array(bladeCount * 12);
-  const sectionT = [0, 0, 0.55, 0.55, 1, 1];
-  const sectionSide = [-1, 1, -1, 1, -1, 1];
-  const vertexColor = [0.62, 0.62, 0.88, 0.88, 1.08, 1.08];
-
-  let blade = 0;
-  for (let i = 0; i < config.tuftCount; i++) {
-    let x = 0;
-    let z = 0;
-    // Leave a tidy clear patch under the desk and chair, then grow dense
-    // little clumps around the rest of the field.
-    do {
-      x = (random() * 2 - 1) * halfArea;
-      z = (random() * 2 - 1) * halfArea;
-    } while (x * x + z * z < config.excludeDeskRadius * config.excludeDeskRadius);
-
-    const tuftRadius = 0.018 + random() * 0.04;
-    for (let b = 0; b < config.bladesPerTuft; b++, blade++) {
-      const rootX = x + (random() - 0.5) * tuftRadius;
-      const rootZ = z + (random() - 0.5) * tuftRadius;
-      const height = config.heightMin + random() * (config.heightMax - config.heightMin);
-      const width = config.widthMin + random() * (config.widthMax - config.widthMin);
-      const angle = random() * Math.PI * 2;
-      const windX = Math.cos(angle + Math.PI / 2);
-      const windZ = Math.sin(angle + Math.PI / 2);
-      const phase = random() * Math.PI * 2;
-      const color = palette[Math.floor(random() * palette.length)].clone().multiplyScalar(0.82 + random() * 0.3);
-      const baseVertex = blade * verticesPerBlade;
-
-      // Three tapered cross sections form a gently curved leaf strip.
-      for (let v = 0; v < verticesPerBlade; v++) {
-        const section = sectionT[v];
-        const side = sectionSide[v];
-        const halfWidth = width * 0.5 * (1 - section * 0.97);
-        const curve = height * 0.13 * section * section;
-        const sideX = Math.cos(angle) * halfWidth * side;
-        const sideZ = Math.sin(angle) * halfWidth * side;
-        const out = (baseVertex + v) * 3;
-        positions[out] = rootX + windX * curve + sideX;
-        positions[out + 1] = 0.006 + height * section;
-        positions[out + 2] = rootZ + windZ * curve + sideZ;
-        const tint = vertexColor[v] * (0.88 + random() * 0.12);
-        colors[out] = color.r * tint;
-        colors[out + 1] = color.g * tint;
-        colors[out + 2] = color.b * tint;
-        tips[baseVertex + v] = section;
-        phases[baseVertex + v] = phase;
-        winds[(baseVertex + v) * 2] = windX;
-        winds[(baseVertex + v) * 2 + 1] = windZ;
-      }
-
-      const idx = blade * 12;
-      for (let segment = 0; segment < 2; segment++) {
-        const v = baseVertex + segment * 2;
-        const index = idx + segment * 6;
-        indices[index] = v;
-        indices[index + 1] = v + 1;
-        indices[index + 2] = v + 2;
-        indices[index + 3] = v + 2;
-        indices[index + 4] = v + 1;
-        indices[index + 5] = v + 3;
-      }
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.setAttribute('aTip', new THREE.BufferAttribute(tips, 1));
-  geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
-  geometry.setAttribute('aWind', new THREE.BufferAttribute(winds, 2));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  geometry.computeVertexNormals();
-
-  const uniforms = {
-    time: { value: 0 },
-    speed: { value: config.windSpeed },
-    strength: { value: config.windStrength },
-  };
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide });
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uGrassTime = uniforms.time;
-    shader.uniforms.uGrassSpeed = uniforms.speed;
-    shader.uniforms.uGrassStrength = uniforms.strength;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uGrassTime;\nuniform float uGrassSpeed;\nuniform float uGrassStrength;\nattribute float aTip;\nattribute float aPhase;\nattribute vec2 aWind;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>
-        float breeze = sin(uGrassTime * uGrassSpeed + aPhase);
-        transformed.xz += aWind * breeze * uGrassStrength * aTip * aTip;`);
-  };
-  material.customProgramCacheKey = () => 'waving-grass-v1';
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = 'waving-grass-blades';
-  mesh.frustumCulled = true;
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-  scene.add(mesh);
-  return { update: (now) => { uniforms.time.value = now * 0.001; return true; } };
-}
-
-function makeGrassTexture(config, renderer) {
-  const size = config.textureResolution;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const colors = config.grassColors.map((color) => `#${color.toString(16).padStart(6, '0')}`);
-  ctx.fillStyle = colors[1];
-  ctx.fillRect(0, 0, size, size);
-
-  // Deterministic, varied short strokes make the ground read as grass while
-  // keeping the field to one mesh and one draw call.
-  let seed = 934857;
-  const random = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-  for (let i = 0; i < config.bladesPerTexture; i++) {
-    const x = random() * size;
-    const y = random() * size;
-    const length = 2 + random() * 9;
-    const lean = (random() - 0.5) * 8;
-    ctx.strokeStyle = colors[Math.floor(random() * colors.length)];
-    ctx.globalAlpha = 0.28 + random() * 0.5;
-    ctx.lineWidth = 0.7 + random() * 1.1;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + lean * 0.45, y - length * 0.55, x + lean, y - length);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(config.textureRepeat, config.textureRepeat);
-  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-  texture.needsUpdate = true;
-  return texture;
+  return envTex;
 }
 
 let _maxAniso = 1;
@@ -476,14 +115,6 @@ export function processTextures(root) {
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
     for (const mat of mats) {
       if (!mat) continue;
-
-      if (/(leaf|branch|grass)/i.test(mat.name || '')) {
-        mat.alphaTest = 0.5;
-        mat.transparent = false;
-        mat.depthWrite = true;
-        mat.side = THREE.DoubleSide;
-        mat.needsUpdate = true;
-      }
 
       // Low-intensity env map so reflections read but stay dark.
       if ('envMapIntensity' in mat) mat.envMapIntensity = CONFIG.env.intensity;
