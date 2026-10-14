@@ -3,7 +3,7 @@ import { CONFIG } from './config.js';
 import {
   createRenderer, createCamera, createScene, setupEnvironment,
   loadModel, measureBounds, resizeRenderer, setMaxAnisotropy,
-  findMeshes, verifyScreenQuad,
+  findMeshes, verifyScreenQuad, makeSurfaceDetailTexture,
 } from './scene.js';
 import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
@@ -360,10 +360,23 @@ async function boot() {
     setProgress(90);
     const model = gltf.scene || gltf.scenes[0];
     scene.add(model);
+    const fabricDetail = makeSurfaceDetailTexture(96);
+    fabricDetail.wrapS = fabricDetail.wrapT = THREE.RepeatWrapping;
+    fabricDetail.repeat.set(3, 5);
     model.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = CONFIG.shadows.enabled;
       object.receiveShadow = CONFIG.shadows.enabled;
+      if (/^Chair_Chair_/i.test(object.name)) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        for (const material of materials) {
+          if (!material || !('roughness' in material)) continue;
+          material.roughness = Math.max(material.roughness || 0, 0.86);
+          material.bumpMap = fabricDetail;
+          material.bumpScale = 0.003;
+          material.needsUpdate = true;
+        }
+      }
     });
 
     const bounds = measureBounds(model);

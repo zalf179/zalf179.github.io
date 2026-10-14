@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { CONFIG } from './config.js';
+import { CONFIG, FEATURES, QUALITY } from './config.js';
 
 // Renderer: SRGB output, ACES tone mapping, capped pixel ratio, transparent
 // canvas so the CSS3D screen can remain visible beneath the WebGL scene.
@@ -37,9 +37,25 @@ export function createScene() {
 // PMREM + RoomEnvironment: low-intensity IBL for believable PBR reflections.
 export function setupEnvironment(scene, renderer) {
   const R = CONFIG.room;
+  const surfaceDetail = FEATURES.surfaceDetail ? makeSurfaceDetailTexture(96) : null;
+  const floorDetail = surfaceDetail && surfaceDetail.clone();
+  if (floorDetail) {
+    floorDetail.wrapS = floorDetail.wrapT = THREE.RepeatWrapping;
+    floorDetail.repeat.set(18, 18);
+    floorDetail.needsUpdate = true;
+  }
+  const wallDetail = surfaceDetail && surfaceDetail.clone();
+  if (wallDetail) {
+    wallDetail.wrapS = wallDetail.wrapT = THREE.RepeatWrapping;
+    wallDetail.repeat.set(5, 3);
+    wallDetail.needsUpdate = true;
+  }
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(R.floorSize, R.floorSize),
-    new THREE.MeshStandardMaterial({ color: R.floorColor, roughness: R.floorRoughness }),
+    new THREE.MeshStandardMaterial({
+      color: R.floorColor, roughness: R.floorRoughness, roughnessMap: floorDetail || null,
+      bumpMap: floorDetail || null, bumpScale: 0.012,
+    }),
   );
   floor.name = 'room-floor';
   floor.rotation.x = -Math.PI / 2;
@@ -49,7 +65,10 @@ export function setupEnvironment(scene, renderer) {
 
   const wall = new THREE.Mesh(
     new THREE.PlaneGeometry(R.wallWidth, R.wallHeight),
-    new THREE.MeshStandardMaterial({ color: R.wallColor, roughness: R.wallRoughness }),
+    new THREE.MeshStandardMaterial({
+      color: R.wallColor, roughness: R.wallRoughness, roughnessMap: wallDetail || null,
+      bumpMap: wallDetail || null, bumpScale: 0.006,
+    }),
   );
   wall.name = 'room-back-wall';
   wall.position.set(0, R.wallHeight / 2, R.wallZ);
@@ -60,8 +79,8 @@ export function setupEnvironment(scene, renderer) {
   // free-look orbit. Their inner faces point toward the center of the room.
   const sideGeometry = new THREE.PlaneGeometry(R.sideWallDepth, R.wallHeight);
   const sideMaterial = new THREE.MeshStandardMaterial({
-    color: R.wallColor,
-    roughness: R.wallRoughness,
+    color: R.wallColor, roughness: R.wallRoughness, roughnessMap: wallDetail || null,
+    bumpMap: wallDetail || null, bumpScale: 0.006,
     side: THREE.DoubleSide,
   });
   for (const [name, x, rotationY] of [
@@ -155,7 +174,9 @@ export function resizeRenderer(renderer, camera) {
   const h = window.innerHeight || 1;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CONFIG.renderer.pixelRatioCap));
+  const cap = window.innerWidth < CONFIG.mobileWidth ? QUALITY.mobilePixelRatioCap : CONFIG.renderer.pixelRatioCap;
+  const qualityCap = QUALITY.deviceTier === 'low' || QUALITY.mode === 'low' ? 1 : cap;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityCap));
   renderer.setSize(w, h, false);
   return { width: w, height: h };
 }
@@ -206,4 +227,26 @@ export function verifyScreenQuad(monitorMesh) {
   for (const p of best.pts) box.expandByPoint(p);
   const center = box.getCenter(new THREE.Vector3());
   return { ok: true, center, normal: best.n.clone(), area: best.area };
+}
+
+// Tiny generated grayscale grain tiles keep the room surfaces from reading
+// as perfectly flat without adding an external texture dependency.
+export function makeSurfaceDetailTexture(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const image = ctx.createImageData(size, size);
+  let seed = 179;
+  for (let i = 0; i < image.data.length; i += 4) {
+    seed = (seed * 16807) % 2147483647;
+    const value = 112 + (seed % 32);
+    image.data[i] = image.data[i + 1] = image.data[i + 2] = value;
+    image.data[i + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  return texture;
 }

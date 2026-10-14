@@ -17,6 +17,26 @@ export const CREDIT_TEXT =
   'by CR!STALLL (https://sketchfab.com/CR1STALLL) licensed under CC-BY-4.0 ' +
   '(http://creativecommons.org/licenses/by/4.0/). Model optimized/compressed by me.';
 
+// One place to tune optional features and device quality.
+export const QUALITY = {
+  mode: 'auto', // 'auto' | 'high' | 'low'
+  deviceTier: 'auto', // resolved at runtime: 'auto' | 'low'
+  pixelRatioCap: 2,
+  mobilePixelRatioCap: 1.25,
+  adaptiveTargetFps: 40,
+};
+
+export const FEATURES = {
+  roomStoryProps: true,
+  surfaceDetail: true,
+  postProcessing: true,
+  adaptiveQuality: true,
+  ambientAudio: false,
+  interactionAudio: true,
+  chairSway: true,
+  lightweightFallback: true,
+};
+
 export const CONFIG = {
   assets: {
     // Repo-root file; relative path so it works on the github.io subpath.
