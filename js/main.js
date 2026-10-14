@@ -297,6 +297,16 @@ function createCoffeeEffect(scene, cup, camera) {
 async function boot() {
   if (!canvas) return;
 
+  const weakDevice = (navigator.deviceMemory || 8) <= 1;
+  if (QUALITY.mode === 'auto' && ((navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 2)) {
+    QUALITY.deviceTier = 'low';
+  }
+  if (weakDevice && FEATURES.lightweightFallback) {
+    showError('This device is using the lightweight portfolio view instead of the 3D scene.');
+    return;
+  }
+  const audio = createAudioController();
+
   if (!webglAvailable()) {
     showError('WebGL is not available on this device, so the 3D scene cannot render. The full portfolio is shown as plain text instead.');
     return;
@@ -501,43 +511,81 @@ async function boot() {
   });
 
   // ------------------------------------------------------------ loop
-  let last = performance.now();
   let frames = 0;
   let perfLast = performance.now();
+  let lowFpsDuration = 0;
+  let qualityStep = 0;
+  let rafId = 0;
 
+  function scheduleLoop() {
+    if (!document.hidden && !rafId) rafId = requestAnimationFrame(loop);
+  }
   function loop() {
-    requestAnimationFrame(loop);
-    if (document.hidden) { last = performance.now(); return; }
+    rafId = 0;
+    if (document.hidden) return;
 
     const now = performance.now();
-    last = now;
-
     if (app.controls) { if (app.controls.update(now)) dirty = true; }
 
     if (app.interaction) { if (app.interaction.update(now)) dirty = true; }
 
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
+    if (app.chairMotion?.update(now)) dirty = true;
     if (app.coffee?.update(now)) dirty = true;
     if (dirty) {
-      renderer.render(scene, camera);
+      if (app.postProcessing) app.postProcessing.render(now);
+      else renderer.render(scene, camera);
       // CSS camera updated in the SAME frame as the WebGL one, so the DOM
       // stays locked to the canvas during fly-to and resize.
       if (app.screen) app.screen.render();
       dirty = false;
+      frames++;
     }
 
-    frames++;
-    if (infoOn && now - perfLast >= 1000) {
-      const fps = Math.round((frames * 1000) / (now - perfLast));
-      const i = renderer.info;
-      console.log(`[perf] ${fps} fps · draw calls ${i.render.calls} · rendered tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
+    const sampleDuration = now - perfLast;
+    if (sampleDuration >= 1000) {
+      const fps = (frames * 1000) / sampleDuration;
+      if (infoOn) {
+        const i = renderer.info;
+        console.log(`[perf] ${Math.round(fps)} fps · draw calls ${i.render.calls} · rendered tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
+      }
+      if (FEATURES.adaptiveQuality && QUALITY.mode === 'auto' && qualityStep < 3) {
+        lowFpsDuration = fps < QUALITY.adaptiveTargetFps ? lowFpsDuration + sampleDuration : 0;
+        if (lowFpsDuration >= 3000) {
+          qualityStep++;
+          lowFpsDuration = 0;
+          if (qualityStep === 1) {
+            renderer.shadowMap.enabled = false;
+            if (app.lights?.lamp?.spot) app.lights.lamp.spot.castShadow = false;
+            if (app.lights?.key) app.lights.key.castShadow = false;
+            if (app.lights?.grounding) app.lights.grounding.castShadow = false;
+          } else if (qualityStep === 2 && app.postProcessing) {
+            app.postProcessing.setEnabled(false);
+          } else if (qualityStep === 3) {
+            renderer.setPixelRatio(Math.max(0.7, renderer.getPixelRatio() * 0.75));
+            renderer.setSize(window.innerWidth, window.innerHeight, false);
+          }
+          dirty = true;
+          console.info(`[quality] reduced graphics quality to step ${qualityStep}`);
+        }
+      }
       frames = 0;
       perfLast = now;
     }
+    scheduleLoop();
   }
 
-  loop();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    } else {
+      dirty = true;
+      scheduleLoop();
+    }
+  });
+  scheduleLoop();
 }
 
 function reportLoadMetrics(debug) {

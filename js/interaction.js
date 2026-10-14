@@ -132,7 +132,7 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
     flight = {
       dir,
       startT: performance.now(),
-      dur: duration * 1000,
+      dur: Math.min(duration, reduced ? 0.35 : duration) * 1000,
       P0, P1, P2,
       q0: fromPose.quat.clone(),
       q1: toPose.quat.clone(),
