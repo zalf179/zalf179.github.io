@@ -47,7 +47,7 @@ export const CONFIG = {
 
   renderer: {
     antialias: true,
-    pixelRatioCap: 1.5,
+    pixelRatioCap: QUALITY.pixelRatioCap,
     toneMappingExposure: 1.05,
     // Transparent canvas lets the CSS room-tone color show through.
     clearColor: 0x05070a,
@@ -123,7 +123,6 @@ export const CONFIG = {
     glowSize: 0.06,
     glowOpacity: 0.28,
     glowColor: 0xffd9a0,
-    flicker: 0.12,
   },
 
   coffee: {

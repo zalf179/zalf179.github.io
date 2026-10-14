@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG, FEATURES } from './config.js';
+import { CONFIG, FEATURES, QUALITY } from './config.js';
 import {
   createRenderer, createCamera, createScene, setupEnvironment,
   loadModel, loadPlantModel, measureBounds, resizeRenderer, setMaxAnisotropy,
@@ -9,6 +9,8 @@ import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
 import { createControls } from './controls.js';
 import { createInteraction } from './interaction.js';
+import { createPostProcessing } from './postprocessing.js';
+import { createAudioController } from './audio.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -40,6 +42,8 @@ function fadeLoader() {
 }
 function showError(message) {
   document.body.classList.add('no-webgl');
+  const audioButton = document.getElementById('audio-toggle');
+  if (audioButton) audioButton.hidden = true;
   if (errorEl) {
     errorEl.hidden = false;
     const msg = errorEl.querySelector('[data-message]');
@@ -52,6 +56,24 @@ function webglAvailable() {
     const c = document.createElement('canvas');
     return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
   } catch { return false; }
+}
+
+function createChairMotion(scene, chair, reduced) {
+  if (!chair || !FEATURES.chairSway || reduced) return null;
+  chair.updateWorldMatrix(true, false);
+  const box = new THREE.Box3().setFromObject(chair);
+  const pivot = new THREE.Group();
+  pivot.name = 'chair-sway-pivot';
+  pivot.position.copy(box.getCenter(new THREE.Vector3()));
+  scene.add(pivot);
+  pivot.attach(chair);
+  return {
+    update(now) {
+      pivot.rotation.y = Math.sin(now * 0.001 * CONFIG.idle.chairSwaySpeed) *
+        THREE.MathUtils.degToRad(CONFIG.idle.chairSwayDeg);
+      return true;
+    },
+  };
 }
 
 function createCoffeeEffect(scene, cup, camera) {
@@ -295,6 +317,16 @@ function createCoffeeEffect(scene, cup, camera) {
 async function boot() {
   if (!canvas) return;
 
+  const weakDevice = (navigator.deviceMemory || 8) <= 1;
+  if (QUALITY.mode === 'auto' && ((navigator.deviceMemory || 8) <= 2 || (navigator.hardwareConcurrency || 8) <= 2)) {
+    QUALITY.deviceTier = 'low';
+  }
+  if (weakDevice && FEATURES.lightweightFallback) {
+    showError('This device is using the lightweight portfolio view instead of the 3D scene.');
+    return;
+  }
+  const audio = createAudioController();
+
   if (!webglAvailable()) {
     showError('WebGL is not available on this device, so the 3D scene cannot render. The full portfolio is shown as plain text instead.');
     return;
@@ -313,17 +345,19 @@ async function boot() {
 
   const scene = createScene();
   const camera = createCamera(window.innerWidth / Math.max(window.innerHeight, 1));
+  const postProcessing = createPostProcessing(renderer, scene, camera);
 
   // Free-look framing: a 3/4 view from the front-right of the desk.
   camera.position.set(...CONFIG.orbit.start.position);
   camera.lookAt(new THREE.Vector3(...CONFIG.orbit.target));
 
   resizeRenderer(renderer, camera);
+  if (postProcessing) postProcessing.resize(window.innerWidth, window.innerHeight);
   renderer.render(scene, camera);
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, screen: null, interaction: null, debug: false,
+    lights: null, screen: null, interaction: null, postProcessing, chairMotion: null, debug: false,
     markDirty: () => { dirty = true; },
   };
   window.__zally = app;
@@ -333,6 +367,7 @@ async function boot() {
   window.addEventListener('resize', () => {
     resizeRenderer(renderer, camera);
     if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+    if (app.postProcessing) app.postProcessing.resize(window.innerWidth, window.innerHeight);
     if (app.interaction) app.interaction.resize();
     dirty = true;
   });
@@ -340,6 +375,7 @@ async function boot() {
     window.setTimeout(() => {
       resizeRenderer(renderer, camera);
       if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+      if (app.postProcessing) app.postProcessing.resize(window.innerWidth, window.innerHeight);
       if (app.interaction) app.interaction.resize();
       dirty = true;
     }, 150);
@@ -415,6 +451,7 @@ async function boot() {
     app.model = model;
     app.bounds = bounds;
     app.meshes = findMeshes(model);
+    app.chairMotion = createChairMotion(scene, app.meshes.get('Chair_Chair_0'), REDUCED);
     app.coffee = createCoffeeEffect(scene, app.meshes.get(CONFIG.coffee.cupMesh), camera);
     app.plant = plant;
     app.lights = lights;
@@ -423,6 +460,9 @@ async function boot() {
       // CSS3D monitor screen (real HTML on the display quad).
     const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
     app.screen = screen;
+    screen.element?.addEventListener('click', (event) => {
+      if (event.target.closest('button, a')) audio.play('click');
+    });
     if (screen.hole) {
       screen.hole.castShadow = false;
       screen.hole.receiveShadow = false;
@@ -440,7 +480,7 @@ async function boot() {
       // Hover / click the computer -> fly to the screen; interactive screen.
     app.interaction = createInteraction({
       canvas, camera, scene, screen, controls: app.controls, lights, meshes: app.meshes,
-      reduced: REDUCED, onNeedsRender: () => { dirty = true; },
+      reduced: REDUCED, audio, onNeedsRender: () => { dirty = true; },
     });
 
     console.log(
@@ -526,43 +566,81 @@ async function boot() {
   });
 
   // ------------------------------------------------------------ loop
-  let last = performance.now();
   let frames = 0;
   let perfLast = performance.now();
+  let lowFpsDuration = 0;
+  let qualityStep = 0;
+  let rafId = 0;
 
+  function scheduleLoop() {
+    if (!document.hidden && !rafId) rafId = requestAnimationFrame(loop);
+  }
   function loop() {
-    requestAnimationFrame(loop);
-    if (document.hidden) { last = performance.now(); return; }
+    rafId = 0;
+    if (document.hidden) return;
 
     const now = performance.now();
-    last = now;
-
     if (app.controls) { if (app.controls.update(now)) dirty = true; }
 
     if (app.interaction) { if (app.interaction.update(now)) dirty = true; }
 
     if (app.screen) { if (app.screen.update(now)) dirty = true; }
 
+    if (app.chairMotion?.update(now)) dirty = true;
     if (app.coffee?.update(now)) dirty = true;
     if (dirty) {
-      renderer.render(scene, camera);
+      if (app.postProcessing) app.postProcessing.render(now);
+      else renderer.render(scene, camera);
       // CSS camera updated in the SAME frame as the WebGL one, so the DOM
       // stays locked to the canvas during fly-to and resize.
       if (app.screen) app.screen.render();
       dirty = false;
+      frames++;
     }
 
-    frames++;
-    if (infoOn && now - perfLast >= 1000) {
-      const fps = Math.round((frames * 1000) / (now - perfLast));
-      const i = renderer.info;
-      console.log(`[perf] ${fps} fps · draw calls ${i.render.calls} · rendered tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
+    const sampleDuration = now - perfLast;
+    if (sampleDuration >= 1000) {
+      const fps = (frames * 1000) / sampleDuration;
+      if (infoOn) {
+        const i = renderer.info;
+        console.log(`[perf] ${Math.round(fps)} fps · draw calls ${i.render.calls} · rendered tris ${i.render.triangles} · tex ${i.memory.textures} · geo ${i.memory.geometries}`);
+      }
+      if (FEATURES.adaptiveQuality && QUALITY.mode === 'auto' && qualityStep < 3) {
+        lowFpsDuration = fps < QUALITY.adaptiveTargetFps ? lowFpsDuration + sampleDuration : 0;
+        if (lowFpsDuration >= 3000) {
+          qualityStep++;
+          lowFpsDuration = 0;
+          if (qualityStep === 1) {
+            renderer.shadowMap.enabled = false;
+            if (app.lights?.lamp?.spot) app.lights.lamp.spot.castShadow = false;
+            if (app.lights?.key) app.lights.key.castShadow = false;
+            if (app.lights?.grounding) app.lights.grounding.castShadow = false;
+          } else if (qualityStep === 2 && app.postProcessing) {
+            app.postProcessing.setEnabled(false);
+          } else if (qualityStep === 3) {
+            renderer.setPixelRatio(Math.max(0.7, renderer.getPixelRatio() * 0.75));
+            renderer.setSize(window.innerWidth, window.innerHeight, false);
+          }
+          dirty = true;
+          console.info(`[quality] reduced graphics quality to step ${qualityStep}`);
+        }
+      }
       frames = 0;
       perfLast = now;
     }
+    scheduleLoop();
   }
 
-  loop();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    } else {
+      dirty = true;
+      scheduleLoop();
+    }
+  });
+  scheduleLoop();
 }
 
 function reportLoadMetrics(debug) {

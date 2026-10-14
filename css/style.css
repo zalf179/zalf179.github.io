@@ -64,6 +64,7 @@ body {
   touch-action: none;
   outline: none;
 }
+#scene-canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: -6px; }
 
 /* ------------------------------------------------------------
    Loading indicator
@@ -129,6 +130,7 @@ body {
   border: 1px solid var(--accent);
   cursor: pointer;
 }
+#loader-retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 #loader-retry[hidden] { display: none; }
 
 /* ------------------------------------------------------------
@@ -196,6 +198,17 @@ body {
 #back-btn:hover { background: rgba(57, 255, 136, 0.12); box-shadow: 0 0 18px var(--accent-dim); }
 #back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 #back-btn[hidden] { display: none; }
+#audio-toggle {
+  position: fixed; right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 42;
+  padding: 0.62rem 0.78rem; color: var(--muted); background: rgba(6,12,10,.82);
+  border: 1px solid var(--accent-dim); border-radius: 6px;
+  font: 10px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .08em;
+  cursor: pointer; backdrop-filter: blur(4px);
+}
+#audio-toggle:hover { color: var(--accent); border-color: var(--accent); }
+#audio-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#audio-toggle[hidden] { display: none; }
 @keyframes blink { 50% { opacity: 0; } }
 
 /* ------------------------------------------------------------
@@ -334,6 +347,23 @@ body.no-webgl #a11y a { color: var(--accent); }
 #css3d-layer .screen .task-clock { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; height: 48px; color: #f4f4f4; padding: 0 20px; font: 13px/1.15 'Segoe UI',Arial,sans-serif; white-space: nowrap; }
 #css3d-layer .screen .clock-time { font-size: 15px; }
 #css3d-layer .screen .clock-date { color: #d0d0d0; font-size: 12px; }
+#css3d-layer .screen .system-tray {
+  position: relative; display: grid; place-items: center; width: 38px; height: 48px;
+  color: #f1f3f5; cursor: default;
+}
+#css3d-layer .screen .tray-network-icon {
+  width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.65;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+#css3d-layer .screen .taskbar .theme-toggle {
+  display: grid; place-items: center; width: 44px; height: 48px; margin-right: 4px;
+  color: #f4d35e; border-radius: 4px; cursor: pointer;
+}
+#css3d-layer .screen .theme-toggle:hover { background: rgba(255,255,255,.13); }
+#css3d-layer .screen .theme-icon { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#css3d-layer .screen[data-theme="dark"] .theme-icon-sun,
+#css3d-layer .screen[data-theme="light"] .theme-icon-moon { display: none; }
+#css3d-layer .screen[data-theme="light"] .theme-toggle { color: #c9ddff; }
 #css3d-layer .screen .taskbar button {
   font: inherit;
   color: #eee;
@@ -394,6 +424,8 @@ body.no-webgl #a11y a { color: var(--accent); }
 #css3d-layer .screen .desktop-icons { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 #css3d-layer .screen .desktop-file { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 126px; min-height: 115px; padding: 10px 4px; border: 1px solid transparent; color: #fff; background: transparent; font: 17px 'Segoe UI',Arial,sans-serif; text-shadow: 0 1px 3px #123; cursor: pointer; }
 #css3d-layer .screen .desktop-file:hover, #css3d-layer .screen .desktop-file:focus-visible { border-color: rgba(255,255,255,.36); background: rgba(255,255,255,.16); outline: none; }
+#css3d-layer .screen button:focus-visible,
+#css3d-layer .screen a:focus-visible { outline: 3px solid #49a6ed; outline-offset: 2px; }
 #css3d-layer .screen .file-icon { display: block; width: 54px; height: 64px; filter: drop-shadow(0 3px 4px rgba(0,0,0,.24)); }
 #css3d-layer .screen .file-icon svg { display: block; width: 100%; height: 100%; overflow: visible; }
 #css3d-layer .screen .txt-page { fill: #fff; stroke: #a6b8c8; stroke-width: 1; }
@@ -629,6 +661,38 @@ body.no-webgl #a11y a { color: var(--accent); }
   margin-top: 8px; padding-top: 8px;
   border-top: 1px solid rgba(255, 0, 255, 0.35); color: #c99fce;
 }
+
+/* Dark appearance for the monitor's open windows. The taskbar stays dark in
+   both modes, like a desktop system tray. */
+#css3d-layer .screen[data-theme="dark"] .app-content { color: #e5eaf2; background: #171a1f; }
+#css3d-layer .screen[data-theme="dark"] .app-titlebar { color: #e5eaf2; background: #252a31; border-color: #343b45; }
+#css3d-layer .screen[data-theme="dark"] .window-actions button { color: #e5eaf2; }
+#css3d-layer .screen[data-theme="dark"] .window-actions button:hover { background: #3b424c; }
+#css3d-layer .screen[data-theme="dark"] .window-actions button:last-child:hover { color: #fff; background: #c42b3a; }
+#css3d-layer .screen[data-theme="dark"] .resize-corner { filter: invert(.65); }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .ps1,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .h,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .plus,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .status { color: #39ff88; }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .cmd,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .comment,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .dim,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .note,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .kv span,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .proj p { color: #a3b1c2; }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .kv b,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .proj .pt,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .row b,
+#css3d-layer .screen[data-theme="dark"] .tool-row > b,
+#css3d-layer .screen[data-theme="dark"] .brand-chip { color: #e5eaf2; }
+#css3d-layer .screen[data-theme="dark"] .skill-brand img,
+#css3d-layer .screen[data-theme="dark"] .brand-chip img { filter: drop-shadow(0 0 2px rgba(255,255,255,.24)); }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .warn { color: #ffd479; }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .name,
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .role { color: #f2f5fa; }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) .tagline { color: #a3b1c2; }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) a { color: #7ab8ff; }
+#css3d-layer .screen[data-theme="dark"]:not([data-active="home"]) a:hover { color: #b1d7ff; }
 
 @media (prefers-reduced-motion: reduce) {
   #css3d-layer .screen .body::after { animation: none; }
