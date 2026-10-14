@@ -222,6 +222,7 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
       setArrivedLights();
       screen.setBrightness(1);
       canvas.style.pointerEvents = 'auto';
+      canvas.focus({ preventScroll: true });
     }
     onNeedsRender && onNeedsRender();
   }
