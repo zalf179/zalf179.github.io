@@ -206,11 +206,9 @@ export function createLamp(scene) {
 
   const target = { spot: P.intensity, glow: P.glowOpacity };
   let level = 0;
-  let flickerScale = 1;
   const applyIntensity = () => {
-    const k = level * flickerScale;
-    spot.intensity = target.spot * k;
-    glow.material.opacity = Math.max(0, Math.min(1, target.glow * k));
+    spot.intensity = target.spot * level;
+    glow.material.opacity = Math.max(0, Math.min(1, target.glow * level));
   };
 
   let spotHelper = null;
@@ -236,10 +234,6 @@ export function createLamp(scene) {
       applyIntensity();
     },
     update(t) {
-      // Faint flicker is shared by the pool and the visible bulb glow.
-      const f = P.flicker;
-      const n = Math.sin(t * 11.0) * 0.5 + Math.sin(t * 23.7 + 1.3) * 0.5;
-      flickerScale = 1 + n * f;
       applyIntensity();
       if (spotHelper) spotHelper.update();
     },

@@ -121,7 +121,6 @@ export const CONFIG = {
     glowSize: 0.06,
     glowOpacity: 0.28,
     glowColor: 0xffd9a0,
-    flicker: 0.12,
   },
 
   coffee: {

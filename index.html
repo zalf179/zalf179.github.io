@@ -77,7 +77,8 @@
   <div id="hint" aria-hidden="true">DRAG TO LOOK &middot; <b>CLICK THE COMPUTER</b></div>
 
   <!-- Fallback exit, only visible while zoomed into the screen. -->
-  <button id="back-btn" type="button" hidden>&larr; BACK</button>
+  <button id="back-btn" type="button" aria-label="Exit monitor and return to the desk" hidden>&larr; BACK</button>
+  <button id="audio-toggle" type="button" aria-label="Unmute interface sounds" aria-pressed="false">SOUND OFF</button>
 
   <script>
     window.__portfolioLoadStartedAt = performance.now();

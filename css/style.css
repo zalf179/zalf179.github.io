@@ -196,6 +196,17 @@ body {
 #back-btn:hover { background: rgba(57, 255, 136, 0.12); box-shadow: 0 0 18px var(--accent-dim); }
 #back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 #back-btn[hidden] { display: none; }
+#audio-toggle {
+  position: fixed; right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 42;
+  padding: 0.62rem 0.78rem; color: var(--muted); background: rgba(6,12,10,.82);
+  border: 1px solid var(--accent-dim); border-radius: 6px;
+  font: 10px/1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: .08em;
+  cursor: pointer; backdrop-filter: blur(4px);
+}
+#audio-toggle:hover { color: var(--accent); border-color: var(--accent); }
+#audio-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#audio-toggle[hidden] { display: none; }
 @keyframes blink { 50% { opacity: 0; } }
 
 /* ------------------------------------------------------------

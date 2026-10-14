@@ -42,6 +42,8 @@ function fadeLoader() {
 }
 function showError(message) {
   document.body.classList.add('no-webgl');
+  const audioButton = document.getElementById('audio-toggle');
+  if (audioButton) audioButton.hidden = true;
   if (errorEl) {
     errorEl.hidden = false;
     const msg = errorEl.querySelector('[data-message]');
@@ -54,6 +56,24 @@ function webglAvailable() {
     const c = document.createElement('canvas');
     return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
   } catch { return false; }
+}
+
+function createChairMotion(scene, chair, reduced) {
+  if (!chair || !FEATURES.chairSway || reduced) return null;
+  chair.updateWorldMatrix(true, false);
+  const box = new THREE.Box3().setFromObject(chair);
+  const pivot = new THREE.Group();
+  pivot.name = 'chair-sway-pivot';
+  pivot.position.copy(box.getCenter(new THREE.Vector3()));
+  scene.add(pivot);
+  pivot.attach(chair);
+  return {
+    update(now) {
+      pivot.rotation.y = Math.sin(now * 0.001 * CONFIG.idle.chairSwaySpeed) *
+        THREE.MathUtils.degToRad(CONFIG.idle.chairSwayDeg);
+      return true;
+    },
+  };
 }
 
 function createCoffeeEffect(scene, cup, camera) {
@@ -401,6 +421,7 @@ async function boot() {
     app.model = model;
     app.bounds = bounds;
     app.meshes = findMeshes(model);
+    app.chairMotion = createChairMotion(scene, app.meshes.get('Chair_Chair_0'), REDUCED);
     app.coffee = createCoffeeEffect(scene, app.meshes.get(CONFIG.coffee.cupMesh), camera);
     app.lights = lights;
     lights.lamp.setOn(1);
@@ -408,6 +429,9 @@ async function boot() {
       // CSS3D monitor screen (real HTML on the display quad).
     const screen = createScreen({ webglScene: scene, camera, onNeedsRender: () => { dirty = true; } });
     app.screen = screen;
+    screen.element?.addEventListener('click', (event) => {
+      if (event.target.closest('button, a')) audio.play('click');
+    });
     if (screen.hole) {
       screen.hole.castShadow = false;
       screen.hole.receiveShadow = false;
@@ -425,7 +449,7 @@ async function boot() {
       // Hover / click the computer -> fly to the screen; interactive screen.
     app.interaction = createInteraction({
       canvas, camera, scene, screen, controls: app.controls, lights, meshes: app.meshes,
-      reduced: REDUCED, onNeedsRender: () => { dirty = true; },
+      reduced: REDUCED, audio, onNeedsRender: () => { dirty = true; },
     });
 
     console.log(

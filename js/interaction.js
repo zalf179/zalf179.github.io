@@ -28,7 +28,7 @@ const smoothish = (a, b, x) => {
   return u * u * (3 - 2 * u);
 };
 
-export function createInteraction({ canvas, camera, scene, screen, controls, lights, meshes, reduced, onNeedsRender }) {
+export function createInteraction({ canvas, camera, scene, screen, controls, lights, meshes, reduced, audio, onNeedsRender }) {
   const S = CONFIG.screen;
   const F = CONFIG.flyTo;
   const debugMode = new URLSearchParams(location.search).has('debug');
@@ -46,12 +46,14 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
   }
   if (screen.hole) targets.push(screen.hole);
 
-  const monitor = meshes.get('Monitor_Monitor_0') || null;
   const emissiveMats = [];
-  if (monitor) {
-    const mats = Array.isArray(monitor.material) ? monitor.material : [monitor.material];
+  const seenMaterials = new Set();
+  for (const target of targets) {
+    if (!target.isMesh) continue;
+    const mats = Array.isArray(target.material) ? target.material : [target.material];
     for (const m of mats) {
-      if (m && 'emissiveIntensity' in m) {
+      if (m && 'emissiveIntensity' in m && !seenMaterials.has(m)) {
+        seenMaterials.add(m);
         emissiveMats.push({ m, base: m.emissiveIntensity || 0 });
       }
     }
@@ -227,6 +229,7 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
   // ---- state entries ----------------------------------------------------
   function enter() {
     if (state !== 'IDLE_ORBIT') return;
+    if (audio) audio.play('boot');
     state = 'FLYING_IN';
     downHit = false;
     hoverTarget = 0;
@@ -244,6 +247,7 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
 
   function exit() {
     if (state !== 'SCREEN_ACTIVE') return;
+    if (audio) audio.play('click');
     state = 'FLYING_OUT';
     screen.setInteractive(false);
     canvas.style.pointerEvents = 'auto';
