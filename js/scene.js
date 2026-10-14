@@ -122,6 +122,7 @@ function addRoomStoryProps(scene, room) {
   rug.rotation.x = -Math.PI / 2;
   rug.scale.set(1, 0.74, 1);
   rug.position.set(0, 0.008, 0.78);
+  rug.receiveShadow = true;
   scene.add(rug);
 
   // Cool, softly emissive window on the left wall, set outside the desk's silhouette.
@@ -174,39 +175,6 @@ function addRoomStoryProps(scene, room) {
     scene.add(book);
   }
 
-  // Tiny desk plant and sticky-note stack at the back edge, away from the monitor.
-  const plant = new THREE.Group();
-  plant.name = 'desk-plant';
-  plant.position.set(-0.84, 0.98, -0.12);
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.12, 8), mat(0xa86549));
-  pot.position.y = 0.06;
-  plant.add(pot);
-  const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.061, 0.061, 0.012, 8), mat(0x33251b));
-  soil.position.y = 0.123;
-  plant.add(soil);
-  const stemMat = mat(0x477b54, 0.95);
-  const leafGeometry = new THREE.SphereGeometry(0.045, 7, 5);
-  for (let i = 0; i < 5; i++) {
-    const leaf = new THREE.Mesh(leafGeometry, stemMat);
-    leaf.scale.set(0.72, 1.65, 0.55);
-    const angle = i * Math.PI * 0.4;
-    leaf.position.set(Math.cos(angle) * 0.065, 0.21 + (i % 2) * 0.025, Math.sin(angle) * 0.065);
-    leaf.rotation.z = -Math.cos(angle) * 0.65;
-    plant.add(leaf);
-  }
-  scene.add(plant);
-  const notes = new THREE.Group();
-  notes.name = 'desk-sticky-notes';
-  notes.position.set(0.86, 0.985, -0.2);
-  const stickyGeometry = new THREE.BoxGeometry(0.15, 0.006, 0.13);
-  for (let i = 0; i < 3; i++) {
-    const note = new THREE.Mesh(stickyGeometry, mat([0xeacb64, 0x82c8c1, 0xe58e72][i], 0.94));
-    note.position.y = i * 0.006;
-    note.rotation.y = (i - 1) * 0.12;
-    notes.add(note);
-  }
-  scene.add(notes);
-
   // A thin, dark cable follows the rear desk edge and drops toward the floor.
   const cablePath = new THREE.CatmullRomCurve3([
     new THREE.Vector3(0.72, 0.91, -0.18), new THREE.Vector3(0.64, 0.86, -0.27),
@@ -236,6 +204,59 @@ export function loadModel(manager, onProgress) {
       },
       onProgress,
       reject,
+    );
+  });
+}
+
+// Loads simple_pot_and_plant.glb and configures placement and materials on the desk.
+export function loadPlantModel(manager, onProgress) {
+  return new Promise((resolve) => {
+    const loader = new GLTFLoader(manager);
+    loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.load(
+      CONFIG.assets.plant,
+      (gltf) => {
+        const plant = gltf.scene || gltf.scenes[0];
+        plant.name = 'desk-plant-model';
+        processTextures(plant);
+
+        // Center on origin horizontally, sit flat on y = 0
+        const box = new THREE.Box3().setFromObject(plant);
+        const center = box.getCenter(new THREE.Vector3());
+        plant.position.x -= center.x;
+        plant.position.z -= center.z;
+        plant.position.y -= box.min.y;
+
+        const container = new THREE.Group();
+        container.name = 'desk-plant';
+        container.position.fromArray(CONFIG.plant?.position || [-0.84, 0.98, -0.12]);
+        const s = CONFIG.plant?.scale ?? 1;
+        container.scale.set(s, s, s);
+        container.add(plant);
+
+        container.traverse((obj) => {
+          if (!obj.isMesh) return;
+          obj.castShadow = CONFIG.shadows.enabled;
+          obj.receiveShadow = CONFIG.shadows.enabled;
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const m of mats) {
+            if (!m) continue;
+            if (m.name === 'POT__0' && (m.roughness === undefined || m.roughness < 0.1)) {
+              m.roughness = 0.65;
+            }
+            if (m.name === 'Material.003' && (m.roughness === undefined || m.roughness < 0.2)) {
+              m.roughness = 0.45;
+            }
+          }
+        });
+
+        resolve(container);
+      },
+      onProgress,
+      (err) => {
+        console.warn('Could not load plant model:', err);
+        resolve(null);
+      },
     );
   });
 }

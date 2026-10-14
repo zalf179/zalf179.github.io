@@ -14,8 +14,9 @@
 export const CREDIT_TEXT =
   'This work is based on "Computer Desk" ' +
   '(https://sketchfab.com/3d-models/computer-desk-ff0674f66e11462e8b3417dee2b58ac9) ' +
-  'by CR!STALLL (https://sketchfab.com/CR1STALLL) licensed under CC-BY-4.0 ' +
-  '(http://creativecommons.org/licenses/by/4.0/). Model optimized/compressed by me.';
+  'by CR!STALLL (https://sketchfab.com/CR1STALLL) and "simple pot and plant" ' +
+  '(https://sketchfab.com/3d-models/simple-pot-and-plant-d489a069b49c4451a0fa17130fba4c28) ' +
+  'by YouniqueĪdeaStudio licensed under CC-BY-4.0. Models optimized/compressed by me.';
 
 // One place to tune optional features and device quality.
 export const QUALITY = {
@@ -41,6 +42,7 @@ export const CONFIG = {
   assets: {
     // Repo-root file; relative path so it works on the github.io subpath.
     model: 'computer_desk-opt.glb',
+    plant: 'simple_pot_and_plant.glb',
   },
 
   renderer: {
@@ -144,6 +146,11 @@ export const CONFIG = {
     steamOpacity: 0.18,
     steamHeight: 0.16,
     steamSpeed: 0.48,
+  },
+
+  plant: {
+    position: [-0.84, 0.98, -0.12],
+    scale: 2.2,
   },
 
   // Display quad in WORLD space. The 4 corners are the SOURCE OF TRUTH:

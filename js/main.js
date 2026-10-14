@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { CONFIG } from './config.js';
+import { CONFIG, FEATURES } from './config.js';
 import {
   createRenderer, createCamera, createScene, setupEnvironment,
-  loadModel, measureBounds, resizeRenderer, setMaxAnisotropy,
+  loadModel, loadPlantModel, measureBounds, resizeRenderer, setMaxAnisotropy,
   findMeshes, verifyScreenQuad, makeSurfaceDetailTexture,
 } from './scene.js';
 import { setupLights } from './lighting.js';
@@ -351,15 +351,45 @@ async function boot() {
   setupEnvironment(scene, renderer);
 
   try {
-    const { gltf, report } = await loadModel(manager, (event) => {
-      if (event.total > 0) {
-        window.__portfolioModelBytes = event.total;
-        setProgress(Math.min(90, (event.loaded / event.total) * 90));
-      } else setIndeterminateProgress();
-    });
+    let deskLoaded = 0;
+    let deskTotal = 0;
+    let plantLoaded = 0;
+    let plantTotal = 0;
+
+    const updateProgress = () => {
+      const total = deskTotal + plantTotal;
+      if (total > 0) {
+        const loaded = deskLoaded + plantLoaded;
+        setProgress(Math.min(90, (loaded / total) * 90));
+      } else {
+        setIndeterminateProgress();
+      }
+    };
+
+    const [{ gltf, report }, plant] = await Promise.all([
+      loadModel(manager, (event) => {
+        if (event.total > 0) {
+          deskLoaded = event.loaded;
+          deskTotal = event.total;
+          window.__portfolioModelBytes = (deskTotal || 0) + (plantTotal || 0);
+          updateProgress();
+        } else setIndeterminateProgress();
+      }),
+      loadPlantModel(manager, (event) => {
+        if (event.total > 0) {
+          plantLoaded = event.loaded;
+          plantTotal = event.total;
+          window.__portfolioModelBytes = (deskTotal || 0) + (plantTotal || 0);
+          updateProgress();
+        }
+      }),
+    ]);
     setProgress(90);
     const model = gltf.scene || gltf.scenes[0];
     scene.add(model);
+    if (FEATURES.roomStoryProps && plant) {
+      scene.add(plant);
+    }
     const fabricDetail = makeSurfaceDetailTexture(96);
     fabricDetail.wrapS = fabricDetail.wrapT = THREE.RepeatWrapping;
     fabricDetail.repeat.set(3, 5);
@@ -386,6 +416,7 @@ async function boot() {
     app.bounds = bounds;
     app.meshes = findMeshes(model);
     app.coffee = createCoffeeEffect(scene, app.meshes.get(CONFIG.coffee.cupMesh), camera);
+    app.plant = plant;
     app.lights = lights;
     lights.lamp.setOn(1);
 
