@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG } from './config.js';
+import { CONFIG, FEATURES } from './config.js';
 
 // ---------------------------------------------------------------------------
 // Lighting rig. The glb ships with no lights, so we build the whole mood:
@@ -54,6 +54,10 @@ export function setupLights(scene, bounds) {
   screenSpill.position.set(s.center[0] + s.normal[0] * 0.25, s.center[1] - 0.18, s.center[2] + s.normal[2] * 0.25);
   scene.add(screenSpill);
 
+  const windowFill = new THREE.PointLight(L.windowFill.color, FEATURES.roomStoryProps ? L.windowFill.intensity : 0, L.windowFill.distance, 2);
+  windowFill.position.set(...L.windowFill.position);
+  scene.add(windowFill);
+
   // Warm desk lamp.
   const lamp = createLamp(scene);
   const previousBeforeRender = scene.onBeforeRender;
@@ -65,7 +69,7 @@ export function setupLights(scene, bounds) {
   // Baked contact shadows.
   const contact = createContactShadows(scene, bounds);
 
-  return { hemi, key, grounding, fill, rim, screenSpill, lamp, contact, centre };
+  return { hemi, key, grounding, fill, rim, screenSpill, windowFill, lamp, contact, centre };
 }
 
 function fitDirectionalShadowCamera(light, bounds, padding) {

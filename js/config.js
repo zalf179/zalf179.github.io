@@ -101,6 +101,7 @@ export const CONFIG = {
     rim: { color: 0x88b4ff, intensity: 0.5, position: [0.15, 2.3, 3.0], target: [0.0, 0.95, 0.72] },
     // Cool photons spilling off the monitor onto the desk/keyboard.
     screenSpill: { color: 0x63d0ff, intensity: 0.7, distance: 1.6 },
+    windowFill: { color: 0x94c9ff, intensity: 0.48, distance: 7, position: [-4.25, 2.8, 0.15] },
   },
 
   // Warm desk lamp. The emitter and aim values are world-space nudges from the
