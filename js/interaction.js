@@ -28,7 +28,7 @@ const smoothish = (a, b, x) => {
   return u * u * (3 - 2 * u);
 };
 
-export function createInteraction({ canvas, camera, scene, screen, controls, lights, meshes, reduced, audio, onNeedsRender }) {
+export function createInteraction({ canvas, camera, scene, screen, controls, lights, meshes, reduced, onNeedsRender }) {
   const S = CONFIG.screen;
   const F = CONFIG.flyTo;
   const debugMode = new URLSearchParams(location.search).has('debug');
@@ -46,14 +46,12 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
   }
   if (screen.hole) targets.push(screen.hole);
 
+  const monitor = meshes.get('Monitor_Monitor_0') || null;
   const emissiveMats = [];
-  const seenMaterials = new Set();
-  for (const target of targets) {
-    if (!target.isMesh) continue;
-    const mats = Array.isArray(target.material) ? target.material : [target.material];
+  if (monitor) {
+    const mats = Array.isArray(monitor.material) ? monitor.material : [monitor.material];
     for (const m of mats) {
-      if (m && 'emissiveIntensity' in m && !seenMaterials.has(m)) {
-        seenMaterials.add(m);
+      if (m && 'emissiveIntensity' in m) {
         emissiveMats.push({ m, base: m.emissiveIntensity || 0 });
       }
     }
@@ -134,7 +132,7 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
     flight = {
       dir,
       startT: performance.now(),
-      dur: Math.min(duration, reduced ? 0.35 : duration) * 1000,
+      dur: duration * 1000,
       P0, P1, P2,
       q0: fromPose.quat.clone(),
       q1: toPose.quat.clone(),
@@ -222,7 +220,6 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
       setArrivedLights();
       screen.setBrightness(1);
       canvas.style.pointerEvents = 'auto';
-      canvas.focus({ preventScroll: true });
     }
     onNeedsRender && onNeedsRender();
   }
@@ -230,7 +227,6 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
   // ---- state entries ----------------------------------------------------
   function enter() {
     if (state !== 'IDLE_ORBIT') return;
-    if (audio) audio.play('boot');
     state = 'FLYING_IN';
     downHit = false;
     hoverTarget = 0;
@@ -248,7 +244,6 @@ export function createInteraction({ canvas, camera, scene, screen, controls, lig
 
   function exit() {
     if (state !== 'SCREEN_ACTIVE') return;
-    if (audio) audio.play('click');
     state = 'FLYING_OUT';
     screen.setInteractive(false);
     canvas.style.pointerEvents = 'auto';

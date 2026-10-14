@@ -307,15 +307,7 @@ export function createScreen({ webglScene, camera, onNeedsRender }) {
       `<nav class="taskbar">` +
         `<button type="button" class="start-button" data-start aria-label="Open Start menu" aria-expanded="false"><span></span><span></span><span></span><span></span></button>` +
         `<button type="button" class="task-app" data-window-restore><span class="task-app-icon">▤</span><span class="task-app-label">${TITLES[INITIAL_APP]}</span></button>` +
-        `<span class="taskbar-spacer"></span>` +
-        `<button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch to dark mode" title="Switch theme">` +
-          `<svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>` +
-          `<svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/></svg>` +
-        `</button>` +
-        `<span class="system-tray" role="img" aria-label="Wi-Fi connected, internet access" title="Wi-Fi · Internet access">` +
-          `<svg class="tray-network-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 8.8a14.5 14.5 0 0 1 19 0M5.8 12.2a9.5 9.5 0 0 1 12.4 0M9.2 15.7a4.5 4.5 0 0 1 5.6 0M12 19.2h.01"/></svg>` +
-        `</span>` +
-        `<time class="task-clock"><span class="clock-time"></span><span class="clock-date"></span></time>` +
+        `<span class="taskbar-spacer"></span><time class="task-clock"><span class="clock-time"></span><span class="clock-date"></span></time>` +
       `</nav>` +
       `<div class="wipe" aria-hidden="true"></div>` +
       `<div class="scan" aria-hidden="true"></div>` +
@@ -441,7 +433,6 @@ export function createScreen({ webglScene, camera, onNeedsRender }) {
 
   function setInteractive(v) {
     layer.classList.toggle('is-active', !!v);
-    layer.setAttribute('aria-hidden', String(!v));
     el.classList.toggle('interactive', !!v);
     el.style.pointerEvents = v ? 'auto' : 'none';
     if (!v) el.querySelector('.body').scrollTop = 0;
@@ -520,22 +511,6 @@ export function createScreen({ webglScene, camera, onNeedsRender }) {
     el.classList.toggle('start-open', open);
     startButton.setAttribute('aria-expanded', String(open));
     startMenu.hidden = !open;
-  });
-  const themeToggle = el.querySelector('[data-theme-toggle]');
-  let savedTheme = null;
-  try { savedTheme = localStorage.getItem('portfolio-screen-theme'); } catch { /* storage may be blocked */ }
-  el.dataset.theme = savedTheme === 'light' ? 'light' : 'dark';
-  const updateThemeButton = () => {
-    const next = el.dataset.theme === 'dark' ? 'light' : 'dark';
-    themeToggle.setAttribute('aria-label', `Switch to ${next} mode`);
-    themeToggle.setAttribute('title', `Switch to ${next} mode`);
-  };
-  updateThemeButton();
-  themeToggle.addEventListener('click', () => {
-    el.dataset.theme = el.dataset.theme === 'dark' ? 'light' : 'dark';
-    try { localStorage.setItem('portfolio-screen-theme', el.dataset.theme); } catch { /* storage may be blocked */ }
-    updateThemeButton();
-    onNeedsRender && onNeedsRender();
   });
   const clock = el.querySelector('.task-clock');
   const updateClock = () => {
