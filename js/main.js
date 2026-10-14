@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CONFIG } from './config.js';
+import { CONFIG, FEATURES, QUALITY } from './config.js';
 import {
   createRenderer, createCamera, createScene, setupEnvironment,
   loadModel, measureBounds, resizeRenderer, setMaxAnisotropy,
@@ -9,6 +9,8 @@ import { setupLights } from './lighting.js';
 import { createScreen } from './screen.js';
 import { createControls } from './controls.js';
 import { createInteraction } from './interaction.js';
+import { createPostProcessing } from './postprocessing.js';
+import { createAudioController } from './audio.js';
 
 const canvas = document.getElementById('scene-canvas');
 const loaderEl = document.getElementById('loader');
@@ -313,17 +315,19 @@ async function boot() {
 
   const scene = createScene();
   const camera = createCamera(window.innerWidth / Math.max(window.innerHeight, 1));
+  const postProcessing = createPostProcessing(renderer, scene, camera);
 
   // Free-look framing: a 3/4 view from the front-right of the desk.
   camera.position.set(...CONFIG.orbit.start.position);
   camera.lookAt(new THREE.Vector3(...CONFIG.orbit.target));
 
   resizeRenderer(renderer, camera);
+  if (postProcessing) postProcessing.resize(window.innerWidth, window.innerHeight);
   renderer.render(scene, camera);
 
   const app = {
     renderer, scene, camera, model: null, bounds: null, meshes: null,
-    lights: null, screen: null, interaction: null, debug: false,
+    lights: null, screen: null, interaction: null, postProcessing, chairMotion: null, debug: false,
     markDirty: () => { dirty = true; },
   };
   window.__zally = app;
@@ -333,6 +337,7 @@ async function boot() {
   window.addEventListener('resize', () => {
     resizeRenderer(renderer, camera);
     if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+    if (app.postProcessing) app.postProcessing.resize(window.innerWidth, window.innerHeight);
     if (app.interaction) app.interaction.resize();
     dirty = true;
   });
@@ -340,6 +345,7 @@ async function boot() {
     window.setTimeout(() => {
       resizeRenderer(renderer, camera);
       if (app.screen) app.screen.resize(window.innerWidth, window.innerHeight);
+      if (app.postProcessing) app.postProcessing.resize(window.innerWidth, window.innerHeight);
       if (app.interaction) app.interaction.resize();
       dirty = true;
     }, 150);
